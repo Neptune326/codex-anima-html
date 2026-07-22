@@ -1,0 +1,12 @@
+{
+  "name": "atlas-gallery",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Single-page multi-source gallery with a same-origin proxy",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=16.17.0"
+  }
+}
