@@ -6,9 +6,12 @@ const path = require('node:path');
 const test = require('node:test');
 
 const {
+  contentDisposition,
   createAppServer,
   parseProxy,
   resolveStaticPath,
+  sanitizeFilename,
+  validateDownloadTarget,
   validateTarget
 } = require('../src/server.js');
 
@@ -65,6 +68,24 @@ test('parseProxy validates HTTP proxy addresses', () => {
   assert.throws(() => parseProxy('not-a-url'), /有效/);
 });
 
+test('download targets and filenames are constrained', () => {
+  assert.equal(
+    validateDownloadTarget('https://cdn.donmai.us/original/sample.jpg').hostname,
+    'cdn.donmai.us'
+  );
+  assert.equal(
+    validateDownloadTarget('https://static1.e621.net/data/sample.webm').hostname,
+    'static1.e621.net'
+  );
+  assert.throws(
+    () => validateDownloadTarget('https://evil-donmai.us/sample.jpg'),
+    /白名单/
+  );
+  assert.equal(sanitizeFilename('../测试\r\n.jpg'), '..-测试--.jpg');
+  assert.match(contentDisposition('插画 01.jpg'), /filename\*=UTF-8''/);
+  assert.doesNotMatch(contentDisposition('bad\r\nname.jpg'), /[\r\n]/);
+});
+
 test('resolveStaticPath prevents traversal and decodes safe paths', () => {
   const publicDirectory = path.join(os.tmpdir(), 'atlas-gallery-test-public');
   assert.equal(
@@ -86,7 +107,11 @@ test('server serves health and static resources without hanging sockets', async 
   try {
     const health = await request(server, '/api/health');
     assert.equal(health.status, 200);
-    assert.equal(JSON.parse(health.body).ok, true);
+    assert.deepEqual(JSON.parse(health.body), {
+      ok: true,
+      version: '2.2.0',
+      proxyMode: app.proxyMode
+    });
 
     const page = await request(server, '/');
     assert.equal(page.status, 200);
@@ -124,6 +149,13 @@ test('server returns validation errors instead of crashing on malformed proxy ta
     const malformed = await request(server, '/api/proxy?url=%25');
     assert.equal(malformed.status, 400);
     assert.match(malformed.body, /目标地址无效/);
+
+    const invalidDownload = await request(
+      server,
+      '/api/download?url=https%3A%2F%2Fexample.com%2Fsample.jpg&filename=sample.jpg'
+    );
+    assert.equal(invalidDownload.status, 400);
+    assert.match(invalidDownload.body, /媒体白名单/);
 
     const health = await request(server, '/api/health');
     assert.equal(health.status, 200);

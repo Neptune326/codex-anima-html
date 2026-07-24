@@ -1,0 +1,149 @@
+export const TAG_DICTIONARY = Object.freeze({
+  '1girl': '单人女性',
+  '1boy': '单人男性',
+  solo: '单人',
+  landscape: '风景',
+  scenery: '景色',
+  wallpaper: '壁纸',
+  sky: '天空',
+  cloud: '云',
+  sunset: '日落',
+  night: '夜景',
+  city: '城市',
+  outdoors: '户外',
+  indoors: '室内',
+  blue_hair: '蓝发',
+  black_hair: '黑发',
+  white_hair: '白发',
+  long_hair: '长发',
+  short_hair: '短发',
+  smile: '微笑',
+  looking_at_viewer: '看向观众',
+  original: '原创角色',
+  animated: '动画',
+  video: '视频',
+  no_humans: '无人',
+  animal: '动物',
+  nature: '自然',
+  water: '水景',
+  mountain: '山景',
+  flower: '花',
+  portrait: '肖像',
+  monochrome: '单色',
+  highres: '高分辨率'
+});
+
+export function translateTag(tag) {
+  return TAG_DICTIONARY[String(tag || '').replace(/^-/, '')] || '';
+}
+
+export function tagTokens(value) {
+  return String(value || '')
+    .trim()
+    .split(/\s+/)
+    .map(tag => tag.trim())
+    .filter(Boolean);
+}
+
+export function suggestTags(input, candidates = [], limit = 8) {
+  const text = String(input || '');
+  const current = text.split(/\s+/).pop() || '';
+  const excluded = current.startsWith('-');
+  const query = current.replace(/^-/, '').toLowerCase();
+
+  if (!query) {
+    return [];
+  }
+
+  const knownTags = new Set([
+    ...Object.keys(TAG_DICTIONARY),
+    ...candidates.flatMap(value => Array.isArray(value) ? value : tagTokens(value))
+  ]);
+
+  return [...knownTags]
+    .filter(tag => tag.toLowerCase().includes(query))
+    .sort((left, right) => {
+      const leftStarts = left.toLowerCase().startsWith(query) ? 0 : 1;
+      const rightStarts = right.toLowerCase().startsWith(query) ? 0 : 1;
+      return leftStarts - rightStarts || left.localeCompare(right);
+    })
+    .slice(0, Math.max(0, limit))
+    .map(tag => ({
+      tag: `${excluded ? '-' : ''}${tag}`,
+      translation: translateTag(tag)
+    }));
+}
+
+export function replaceCurrentTag(input, replacement) {
+  const text = String(input || '');
+  const leading = text.match(/^\s*/)?.[0] || '';
+  const tokens = text.trim().split(/\s+/).filter(Boolean);
+  tokens[tokens.length - 1] = replacement;
+  return `${leading}${tokens.join(' ')} `;
+}
+
+export function matchesSmartCollection(post, collection) {
+  if (!post || !collection) {
+    return false;
+  }
+
+  const requiredTags = tagTokens(collection.tags).map(tag => tag.replace(/^-/, ''));
+  const postTags = new Set(Array.isArray(post.tags) ? post.tags : []);
+  const mediaMatches = !collection.mediaType
+    || collection.mediaType === 'all'
+    || post.type === collection.mediaType;
+
+  return mediaMatches && requiredTags.every(tag => postTags.has(tag));
+}
+
+export function matchesDimension(post, filter = 'all') {
+  const width = Number(post?.width) || 0;
+  const height = Number(post?.height) || 0;
+
+  if (filter === 'large') {
+    return width >= 2560 || height >= 2560;
+  }
+  if (!width || !height || filter === 'all') {
+    return true;
+  }
+
+  const ratio = width / height;
+  if (filter === 'square') {
+    return ratio >= 0.9 && ratio <= 1.1;
+  }
+  return filter === 'landscape' ? ratio > 1.1 : ratio < 0.9;
+}
+
+export function mediaIdentity(post) {
+  if (!post?.file) {
+    return `${post?.source || 'unknown'}:${post?.id || 'unknown'}`;
+  }
+
+  try {
+    const url = new URL(post.file);
+    return `${url.hostname.toLowerCase()}${decodeURIComponent(url.pathname)}`;
+  } catch {
+    return String(post.file).split(/[?#]/)[0].toLowerCase();
+  }
+}
+
+export function downloadFilename(post) {
+  const source = String(post?.source || 'media').replace(/[^a-z0-9_-]/gi, '-');
+  const id = String(post?.id || Date.now()).replace(/[^a-z0-9_-]/gi, '-');
+  let extension = String(post?.extension || '').replace(/^\./, '').toLowerCase();
+
+  if (!extension && post?.file) {
+    try {
+      const pathname = new URL(post.file).pathname;
+      extension = pathname.split('.').pop().toLowerCase();
+    } catch {
+      extension = '';
+    }
+  }
+
+  if (!/^[a-z0-9]{2,5}$/.test(extension)) {
+    extension = post?.type === 'video' ? 'mp4' : 'jpg';
+  }
+
+  return `${source}-${id}.${extension}`;
+}

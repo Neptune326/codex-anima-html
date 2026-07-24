@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="light dark">
   <meta name="description" content="多站点图片与视频图库浏览器">
   <title>Atlas Gallery</title>
-  <link rel="stylesheet" href="/css/styles.css?v=2.0.0">
+  <link rel="stylesheet" href="/css/styles.css?v=2.2.1">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true">
@@ -77,6 +77,39 @@
       <circle cx="12" cy="12" r="1" />
       <circle cx="19" cy="12" r="1" />
     </symbol>
+    <symbol id="icon-history" viewBox="0 0 24 24">
+      <path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2" />
+    </symbol>
+    <symbol id="icon-help" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.8 9a2.3 2.3 0 1 1 3.1 2.2c-.9.4-.9 1.1-.9 1.8M12 17h.01" />
+    </symbol>
+    <symbol id="icon-check" viewBox="0 0 24 24">
+      <path d="m5 12 4 4L19 6" />
+    </symbol>
+    <symbol id="icon-grid" viewBox="0 0 24 24">
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <rect x="14" y="14" width="7" height="7" rx="1" />
+    </symbol>
+    <symbol id="icon-masonry" viewBox="0 0 24 24">
+      <rect x="3" y="3" width="8" height="5" rx="1" />
+      <rect x="13" y="3" width="8" height="9" rx="1" />
+      <rect x="3" y="10" width="8" height="11" rx="1" />
+      <rect x="13" y="14" width="8" height="7" rx="1" />
+    </symbol>
+    <symbol id="icon-zoom-in" viewBox="0 0 24 24">
+      <circle cx="10.5" cy="10.5" r="6.5" />
+      <path d="M10.5 7.5v6M7.5 10.5h6M16 16l5 5" />
+    </symbol>
+    <symbol id="icon-zoom-out" viewBox="0 0 24 24">
+      <circle cx="10.5" cy="10.5" r="6.5" />
+      <path d="M7.5 10.5h6M16 16l5 5" />
+    </symbol>
+    <symbol id="icon-retry" viewBox="0 0 24 24">
+      <path d="M20 6v5h-5M19 11a7 7 0 1 0-1 6" />
+    </symbol>
   </svg>
 
   <div class="app-shell">
@@ -100,6 +133,10 @@
           <svg class="icon"><use href="#icon-favorite"></use></svg>
           <span>收藏</span>
           <span class="tab-count" id="favoriteCount">0</span>
+        </button>
+        <button class="view-tab" type="button" data-view="history">
+          <svg class="icon"><use href="#icon-history"></use></svg>
+          <span>历史</span>
         </button>
       </nav>
 
@@ -132,17 +169,31 @@
           </button>
         </div>
 
-        <form class="search-field" id="searchForm" role="search">
-          <svg class="icon search-icon"><use href="#icon-search"></use></svg>
-          <input
-            id="tagInput"
-            type="search"
-            autocomplete="off"
-            placeholder="搜索标签，使用 -tag 排除"
-            aria-label="搜索标签"
-          >
-          <button class="search-submit" type="submit">搜索</button>
-        </form>
+        <div class="search-wrap">
+          <form class="search-field" id="searchForm" role="search">
+            <svg class="icon search-icon"><use href="#icon-search"></use></svg>
+            <input
+              id="tagInput"
+              type="search"
+              autocomplete="off"
+              placeholder="搜索标签，使用 -tag 排除"
+              aria-label="搜索标签"
+              aria-autocomplete="list"
+              aria-controls="tagSuggestions"
+            >
+            <button class="search-help" id="searchHelp" type="button" title="搜索语法">
+              <svg class="icon"><use href="#icon-help"></use></svg>
+            </button>
+            <button class="search-submit" type="submit">搜索</button>
+          </form>
+          <div class="tag-suggestions" id="tagSuggestions" role="listbox" hidden></div>
+          <div class="syntax-help" id="syntaxHelp" hidden>
+            <strong>搜索语法</strong>
+            <span><code>blue_hair sky</code> 同时包含两个标签</span>
+            <span><code>-text</code> 排除指定标签</span>
+            <span>多词标签使用下划线连接；不同站点支持的标签数量可能不同</span>
+          </div>
+        </div>
 
         <button class="tonal-button" id="savedSearchButton" type="button">
           <svg class="icon"><use href="#icon-bookmark"></use></svg>
@@ -199,12 +250,44 @@
             <p id="sectionSubtitle">按热度浏览多个站点的图片与视频</p>
           </div>
         </div>
-        <span class="result-count" id="resultCount">0 项</span>
+        <div class="section-actions">
+          <label class="compact-select">
+            <span>尺寸</span>
+            <select id="dimensionFilter">
+              <option value="all">全部</option>
+              <option value="landscape">横图</option>
+              <option value="portrait">竖图</option>
+              <option value="square">方图</option>
+              <option value="large">高分辨率</option>
+            </select>
+          </label>
+          <div class="layout-toggle" id="layoutToggle" aria-label="图库布局">
+            <button class="icon-button is-active" type="button" data-layout="grid" title="等高网格">
+              <svg class="icon"><use href="#icon-grid"></use></svg>
+            </button>
+            <button class="icon-button" type="button" data-layout="masonry" title="瀑布流">
+              <svg class="icon"><use href="#icon-masonry"></use></svg>
+            </button>
+          </div>
+          <span class="result-count" id="resultCount">0 项</span>
+        </div>
       </header>
 
       <div class="message-banner" id="messageBanner" hidden role="alert">
         <span id="messageText"></span>
         <button class="text-button" id="retryButton" type="button">重试</button>
+      </div>
+
+      <div class="collection-tools" id="collectionTools" hidden></div>
+
+      <div class="batch-toolbar" id="batchToolbar" hidden>
+        <span id="selectionCount">已选择 0 项</span>
+        <button class="text-button" id="selectVisibleButton" type="button">选择当前结果</button>
+        <button class="filled-button" id="downloadSelectedButton" type="button">
+          <svg class="icon"><use href="#icon-download"></use></svg>
+          下载所选
+        </button>
+        <button class="text-button" id="clearSelectionButton" type="button">清除选择</button>
       </div>
 
       <div class="gallery-grid" id="gallery" aria-live="polite"></div>
@@ -261,6 +344,14 @@
           <input type="checkbox" data-setting="autoplay">
         </label>
         <label class="setting-row">
+          <span><strong>视频默认静音</strong><small>自动播放时建议保持开启</small></span>
+          <input type="checkbox" data-setting="videoMuted">
+        </label>
+        <label class="setting-row">
+          <span><strong>视频循环播放</strong><small>预览结束后从头播放</small></span>
+          <input type="checkbox" data-setting="videoLoop">
+        </label>
+        <label class="setting-row">
           <span><strong>模糊敏感缩略图</strong><small>预览前保护敏感内容</small></span>
           <input type="checkbox" data-setting="blurSensitive">
         </label>
@@ -296,6 +387,14 @@
           </button>
           <input id="importFile" type="file" accept="application/json,.json" hidden>
         </div>
+        <button class="outlined-button data-wide-button" id="downloadFavoritesButton" type="button">
+          <svg class="icon"><use href="#icon-download"></use></svg>
+          下载全部收藏媒体
+        </button>
+        <button class="outlined-button data-wide-button" id="clearHistoryButton" type="button">
+          <svg class="icon"><use href="#icon-history"></use></svg>
+          清空浏览历史
+        </button>
         <button class="danger-button" id="resetButton" type="button">
           <svg class="icon"><use href="#icon-delete"></use></svg>
           清除全部本地数据
@@ -322,6 +421,30 @@
       <button class="filled-button" type="submit">保存当前搜索</button>
     </form>
     <div class="saved-search-list" id="savedSearchList"></div>
+    <section class="smart-collection-section">
+      <h3>智能收藏夹</h3>
+      <p>按标签和媒体类型自动筛选本地收藏。</p>
+      <form class="smart-collection-form" id="smartCollectionForm">
+        <label class="text-field compact">
+          <span>名称</span>
+          <input id="smartCollectionName" maxlength="40" required placeholder="例如：风景视频">
+        </label>
+        <label class="text-field compact">
+          <span>包含标签</span>
+          <input id="smartCollectionTags" placeholder="landscape sky">
+        </label>
+        <label class="text-field compact">
+          <span>媒体类型</span>
+          <select id="smartCollectionMedia">
+            <option value="all">全部</option>
+            <option value="image">图片</option>
+            <option value="video">视频</option>
+          </select>
+        </label>
+        <button class="filled-button" type="submit">创建</button>
+      </form>
+      <div class="saved-search-list" id="smartCollectionList"></div>
+    </section>
   </dialog>
 
   <dialog class="preview-dialog" id="previewDialog">
@@ -332,6 +455,15 @@
       <button class="preview-nav previous" id="previousPreview" type="button" title="上一项">
         <svg class="icon"><use href="#icon-chevron-left"></use></svg>
       </button>
+      <div class="preview-zoom" id="previewZoom" hidden>
+        <button class="icon-button" id="zoomOutButton" type="button" title="缩小">
+          <svg class="icon"><use href="#icon-zoom-out"></use></svg>
+        </button>
+        <button class="zoom-value" id="zoomResetButton" type="button" title="恢复原始缩放">100%</button>
+        <button class="icon-button" id="zoomInButton" type="button" title="放大">
+          <svg class="icon"><use href="#icon-zoom-in"></use></svg>
+        </button>
+      </div>
       <div class="preview-media" id="previewMedia"></div>
       <button class="preview-nav next" id="nextPreview" type="button" title="下一项">
         <svg class="icon"><use href="#icon-chevron-right"></use></svg>
@@ -340,8 +472,21 @@
     <aside class="preview-details" id="previewDetails"></aside>
   </dialog>
 
+  <aside class="download-queue" id="downloadQueue" aria-label="下载队列" hidden>
+    <header>
+      <div>
+        <strong>下载队列</strong>
+        <small id="downloadQueueSummary">0 项</small>
+      </div>
+      <button class="icon-button" id="clearDownloadQueue" type="button" title="清除已完成">
+        <svg class="icon"><use href="#icon-delete"></use></svg>
+      </button>
+    </header>
+    <div class="download-queue-list" id="downloadQueueList"></div>
+  </aside>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script type="module" src="/js/app.js?v=2.0.0"></script>
+  <script type="module" src="/js/app.js?v=2.2.0"></script>
 </body>
 </html>

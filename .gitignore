@@ -1,3 +1,5 @@
 .npm-cache/
 .server-error.log
 .server-out.log
+.codex-server.err.log
+.codex-server.out.log

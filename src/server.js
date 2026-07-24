@@ -4,9 +4,11 @@ const net = require('node:net');
 const tls = require('node:tls');
 const fs = require('node:fs');
 const path = require('node:path');
+const { version: APP_VERSION } = require('../package.json');
 
 const DEFAULT_PORT = 4173;
 const MAX_RESPONSE_BYTES = 16 * 1024 * 1024;
+const MAX_DOWNLOAD_BYTES = 256 * 1024 * 1024;
 const MAX_PROXY_REQUESTS = 12;
 const REQUEST_TIMEOUT_MS = 25000;
 
@@ -25,6 +27,18 @@ const ALLOWED_HOSTS = new Set([
   'e621.net',
   'e926.net'
 ]);
+
+const MEDIA_HOST_SUFFIXES = [
+  'yande.re',
+  'konachan.com',
+  'gelbooru.com',
+  'donmai.us',
+  'sankakucomplex.com',
+  'safebooru.org',
+  'rule34.xxx',
+  'e621.net',
+  'e926.net'
+];
 
 const MIME_TYPES = {
   '.css': 'text/css; charset=utf-8',
@@ -62,6 +76,46 @@ function validateTarget(value) {
   }
 
   return target;
+}
+
+function validateDownloadTarget(value) {
+  let target;
+
+  try {
+    target = new URL(value);
+  } catch {
+    throw new Error('下载地址无效');
+  }
+
+  const hostname = target.hostname.toLowerCase();
+  const allowed = MEDIA_HOST_SUFFIXES.some(suffix => {
+    return hostname === suffix || hostname.endsWith(`.${suffix}`);
+  });
+
+  if (target.protocol !== 'https:' || !allowed) {
+    throw new Error('下载地址不在媒体白名单中');
+  }
+
+  if (target.username || target.password) {
+    throw new Error('下载地址不能包含凭据');
+  }
+
+  return target;
+}
+
+function sanitizeFilename(value) {
+  const cleaned = String(value || 'media')
+    .replace(/[\u0000-\u001f\u007f<>:"/\\|?*]/g, '-')
+    .replace(/\s+/g, ' ')
+    .replace(/[. ]+$/g, '')
+    .slice(0, 180);
+  return cleaned || 'media';
+}
+
+function contentDisposition(filename) {
+  const safeFilename = sanitizeFilename(filename);
+  const asciiFilename = safeFilename.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_');
+  return `attachment; filename="${asciiFilename}"; filename*=UTF-8''${encodeURIComponent(safeFilename)}`;
 }
 
 function parseProxy(value) {
@@ -218,7 +272,13 @@ async function createUpstreamRequest(target, proxyResolver, onResponse) {
   return https.request(options, onResponse);
 }
 
-function fetchUpstream(target, proxyResolver, redirects = 0) {
+function fetchUpstream(
+  target,
+  proxyResolver,
+  redirects = 0,
+  maxBytes = MAX_RESPONSE_BYTES,
+  validator = validateTarget
+) {
   return new Promise((resolve, reject) => {
     createUpstreamRequest(target, proxyResolver, upstream => {
       const status = upstream.statusCode || 502;
@@ -238,8 +298,14 @@ function fetchUpstream(target, proxyResolver, redirects = 0) {
         }
 
         try {
-          const redirectedTarget = validateTarget(new URL(location, target).href);
-          fetchUpstream(redirectedTarget, proxyResolver, redirects + 1).then(resolve, reject);
+          const redirectedTarget = validator(new URL(location, target).href);
+          fetchUpstream(
+            redirectedTarget,
+            proxyResolver,
+            redirects + 1,
+            maxBytes,
+            validator
+          ).then(resolve, reject);
         } catch (error) {
           reject(error);
         }
@@ -247,9 +313,9 @@ function fetchUpstream(target, proxyResolver, redirects = 0) {
       }
 
       const declaredLength = Number(upstream.headers['content-length']) || 0;
-      if (declaredLength > MAX_RESPONSE_BYTES) {
+      if (declaredLength > maxBytes) {
         upstream.destroy();
-        reject(new Error('目标站点响应超过 16 MB'));
+        reject(new Error(`目标站点响应超过 ${Math.round(maxBytes / 1024 / 1024)} MB`));
         return;
       }
 
@@ -259,8 +325,8 @@ function fetchUpstream(target, proxyResolver, redirects = 0) {
       upstream.on('data', chunk => {
         size += chunk.length;
 
-        if (size > MAX_RESPONSE_BYTES) {
-          upstream.destroy(new Error('目标站点响应超过 16 MB'));
+        if (size > maxBytes) {
+          upstream.destroy(new Error(`目标站点响应超过 ${Math.round(maxBytes / 1024 / 1024)} MB`));
           return;
         }
 
@@ -410,10 +476,44 @@ function createAppServer(options = {}) {
       return;
     }
 
+    if (request.method === 'GET' && requestUrl.pathname === '/api/download') {
+      let target;
+
+      try {
+        target = validateDownloadTarget(requestUrl.searchParams.get('url') || '');
+      } catch (error) {
+        sendJson(response, 400, { error: error.message });
+        return;
+      }
+
+      try {
+        const upstream = await fetchUpstream(
+          target,
+          proxyResolver,
+          0,
+          MAX_DOWNLOAD_BYTES,
+          validateDownloadTarget
+        );
+        const filename = sanitizeFilename(requestUrl.searchParams.get('filename') || 'media');
+        response.writeHead(upstream.status, {
+          'Content-Type': upstream.contentType || 'application/octet-stream',
+          'Content-Disposition': contentDisposition(filename),
+          'Content-Length': upstream.bytes.length,
+          'Cache-Control': 'no-store',
+          'Referrer-Policy': 'no-referrer',
+          'X-Content-Type-Options': 'nosniff'
+        });
+        response.end(upstream.bytes);
+      } catch (error) {
+        sendJson(response, 502, { error: error.message });
+      }
+      return;
+    }
+
     if (request.method === 'GET' && requestUrl.pathname === '/api/health') {
       sendJson(response, 200, {
         ok: true,
-        version: 2,
+        version: APP_VERSION,
         proxyMode: proxyResolver.mode
       });
       return;
@@ -466,8 +566,11 @@ if (require.main === module) {
 
 module.exports = {
   ALLOWED_HOSTS,
+  contentDisposition,
   createAppServer,
   parseProxy,
   resolveStaticPath,
+  sanitizeFilename,
+  validateDownloadTarget,
   validateTarget
 };

@@ -1,5 +1,10 @@
 const STORAGE_KEY = 'atlas-gallery-v2';
 const LEGACY_STORAGE_KEY = 'atlas-gallery';
+const FALLBACK_LIBRARY_KEY = 'atlas-gallery-library-fallback';
+const DATABASE_NAME = 'atlas-gallery-library';
+const DATABASE_VERSION = 1;
+const FAVORITES_STORE = 'favorites';
+const HISTORY_STORE = 'history';
 
 export const DEFAULT_STATE = {
   source: 'konachan',
@@ -9,19 +14,27 @@ export const DEFAULT_STATE = {
   anchorDate: '',
   tags: '',
   ratings: ['safe'],
+  dimensionFilter: 'all',
   settings: {
     theme: 'light',
     accent: 'blue',
     hideDetails: false,
     autoplay: true,
+    videoMuted: true,
+    videoLoop: false,
     blurSensitive: true,
     compactGrid: false,
+    galleryLayout: 'grid',
     reduceMotion: false,
     proxyTemplate: ''
   },
   favorites: {},
+  history: {},
   recentSearches: [],
-  savedSearches: []
+  savedSearches: [],
+  smartCollections: [],
+  activeSmartCollection: '',
+  videoProgress: {}
 };
 
 function clone(value) {
@@ -40,6 +53,9 @@ function normalizeSettings(settings = {}) {
     accent: ['blue', 'green', 'coral', 'violet'].includes(settings.accent)
       ? settings.accent
       : DEFAULT_STATE.settings.accent,
+    galleryLayout: ['grid', 'masonry'].includes(settings.galleryLayout)
+      ? settings.galleryLayout
+      : DEFAULT_STATE.settings.galleryLayout,
     compactGrid: settings.compactGrid ?? settings.compact ?? false,
     proxyTemplate: settings.proxyTemplate ?? settings.proxy ?? ''
   };
@@ -50,14 +66,23 @@ function normalizeState(value = {}) {
     ...clone(DEFAULT_STATE),
     ...value,
     mediaType: value.mediaType || value.media || DEFAULT_STATE.mediaType,
+    dimensionFilter: ['all', 'landscape', 'portrait', 'square', 'large'].includes(value.dimensionFilter)
+      ? value.dimensionFilter
+      : DEFAULT_STATE.dimensionFilter,
     settings: normalizeSettings(value.settings),
     favorites: value.favorites && typeof value.favorites === 'object'
       ? value.favorites
       : {},
+    history: value.history && typeof value.history === 'object' ? value.history : {},
     recentSearches: Array.isArray(value.recentSearches) ? value.recentSearches : [],
     savedSearches: Array.isArray(value.savedSearches)
       ? value.savedSearches
-      : Array.isArray(value.presets) ? value.presets : []
+      : Array.isArray(value.presets) ? value.presets : [],
+    smartCollections: Array.isArray(value.smartCollections) ? value.smartCollections : [],
+    activeSmartCollection: value.activeSmartCollection || '',
+    videoProgress: value.videoProgress && typeof value.videoProgress === 'object'
+      ? value.videoProgress
+      : {}
   };
 }
 
@@ -88,26 +113,198 @@ export function loadState() {
 
 export function saveState(state) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    const lightweightState = {
+      ...state,
+      favorites: {},
+      history: {}
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(lightweightState));
     return true;
   } catch {
     return false;
   }
 }
 
-export function resetState() {
+function openDatabase() {
+  if (!globalThis.indexedDB) {
+    return Promise.reject(new Error('IndexedDB unavailable'));
+  }
+
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
+    request.onupgradeneeded = () => {
+      const database = request.result;
+      if (!database.objectStoreNames.contains(FAVORITES_STORE)) {
+        database.createObjectStore(FAVORITES_STORE, { keyPath: 'key' });
+      }
+      if (!database.objectStoreNames.contains(HISTORY_STORE)) {
+        database.createObjectStore(HISTORY_STORE, { keyPath: 'key' });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error('无法打开 IndexedDB'));
+  });
+}
+
+function readStore(database, storeName) {
+  return new Promise((resolve, reject) => {
+    const request = database.transaction(storeName, 'readonly').objectStore(storeName).getAll();
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => reject(request.error || new Error('无法读取本地图库'));
+  });
+}
+
+function writeStore(database, storeName, entries) {
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(storeName, 'readwrite');
+    const store = transaction.objectStore(storeName);
+    store.clear();
+    entries.forEach(entry => store.put(entry));
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error || new Error('无法保存本地图库'));
+  });
+}
+
+function objectFromEntries(entries) {
+  return Object.fromEntries(entries.map(entry => [entry.key, entry.post]));
+}
+
+function storeEntries(value) {
+  return Object.entries(value || {}).map(([key, post]) => ({ key, post }));
+}
+
+function readFallbackLibrary() {
+  return readJson(FALLBACK_LIBRARY_KEY);
+}
+
+function normalizeLibrary(library = {}) {
+  return {
+    favorites: library.favorites && typeof library.favorites === 'object'
+      ? library.favorites
+      : {},
+    history: library.history && typeof library.history === 'object'
+      ? library.history
+      : {}
+  };
+}
+
+function hasLibraryEntries(library) {
+  return Object.keys(library.favorites).length > 0
+    || Object.keys(library.history).length > 0;
+}
+
+export function resolveLibrarySnapshot(databaseLibrary, fallbackLibrary, stateLibrary) {
+  if (fallbackLibrary) {
+    return normalizeLibrary(fallbackLibrary);
+  }
+
+  const normalizedDatabase = normalizeLibrary(databaseLibrary);
+  return hasLibraryEntries(normalizedDatabase)
+    ? normalizedDatabase
+    : normalizeLibrary(stateLibrary);
+}
+
+function writeFallbackLibrary(library) {
+  try {
+    localStorage.setItem(FALLBACK_LIBRARY_KEY, JSON.stringify(library));
+  } catch {
+    // Keep the in-memory state when browser storage is unavailable or full.
+  }
+}
+
+export async function hydrateLibrary(state) {
+  let database;
+
+  try {
+    database = await openDatabase();
+    const [favoriteEntries, historyEntries] = await Promise.all([
+      readStore(database, FAVORITES_STORE),
+      readStore(database, HISTORY_STORE)
+    ]);
+    const databaseLibrary = {
+      favorites: objectFromEntries(favoriteEntries),
+      history: objectFromEntries(historyEntries)
+    };
+    const fallbackLibrary = readFallbackLibrary();
+    const stateLibrary = {
+      favorites: state.favorites,
+      history: state.history
+    };
+    const library = resolveLibrarySnapshot(databaseLibrary, fallbackLibrary, stateLibrary);
+    const shouldMigrate = Boolean(fallbackLibrary)
+      || (!hasLibraryEntries(databaseLibrary) && hasLibraryEntries(library));
+
+    state.favorites = library.favorites;
+    state.history = library.history;
+
+    if (shouldMigrate) {
+      await Promise.all([
+        writeStore(database, FAVORITES_STORE, storeEntries(library.favorites)),
+        writeStore(database, HISTORY_STORE, storeEntries(library.history))
+      ]);
+      localStorage.removeItem(FALLBACK_LIBRARY_KEY);
+    }
+  } catch {
+    const fallback = readFallbackLibrary();
+    if (fallback) {
+      const library = normalizeLibrary(fallback);
+      state.favorites = library.favorites;
+      state.history = library.history;
+    }
+  } finally {
+    database?.close();
+  }
+
+  return state;
+}
+
+export async function saveLibrary(state) {
+  const library = {
+    favorites: state.favorites || {},
+    history: state.history || {}
+  };
+
+  try {
+    const database = await openDatabase();
+    await Promise.all([
+      writeStore(database, FAVORITES_STORE, storeEntries(library.favorites)),
+      writeStore(database, HISTORY_STORE, storeEntries(library.history))
+    ]);
+    database.close();
+    localStorage.removeItem(FALLBACK_LIBRARY_KEY);
+  } catch {
+    writeFallbackLibrary(library);
+  }
+}
+
+export async function resetState() {
   localStorage.removeItem(STORAGE_KEY);
   localStorage.removeItem(LEGACY_STORAGE_KEY);
+  localStorage.removeItem(FALLBACK_LIBRARY_KEY);
+
+  try {
+    await new Promise((resolve, reject) => {
+      const request = indexedDB.deleteDatabase(DATABASE_NAME);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+      request.onblocked = () => resolve();
+    });
+  } catch {
+    // localStorage has already been cleared.
+  }
+
   return clone(DEFAULT_STATE);
 }
 
 export function exportLibrary(state) {
   const payload = {
     format: 'atlas-gallery-library',
-    version: 2,
+    version: 3,
     exportedAt: new Date().toISOString(),
     favorites: state.favorites,
-    savedSearches: state.savedSearches
+    history: state.history,
+    savedSearches: state.savedSearches,
+    smartCollections: state.smartCollections
   };
 
   return JSON.stringify(payload, null, 2);
@@ -122,7 +319,10 @@ export function importLibrary(text, state) {
     throw new Error('文件不是有效的 JSON');
   }
 
-  if (payload?.format !== 'atlas-gallery-library' || payload?.version !== 2) {
+  if (
+    payload?.format !== 'atlas-gallery-library'
+    || ![2, 3].includes(payload?.version)
+  ) {
     throw new Error('文件格式或版本不受支持');
   }
 
@@ -132,8 +332,15 @@ export function importLibrary(text, state) {
       ...state.favorites,
       ...(payload.favorites || {})
     },
+    history: {
+      ...state.history,
+      ...(payload.history || {})
+    },
     savedSearches: Array.isArray(payload.savedSearches)
       ? payload.savedSearches
-      : state.savedSearches
+      : state.savedSearches,
+    smartCollections: Array.isArray(payload.smartCollections)
+      ? payload.smartCollections
+      : state.smartCollections
   };
 }

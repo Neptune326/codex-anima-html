@@ -6,10 +6,21 @@ import {
   ratingName
 } from './sites.js';
 import {
+  downloadFilename,
+  matchesDimension,
+  matchesSmartCollection,
+  mediaIdentity,
+  replaceCurrentTag,
+  suggestTags,
+  translateTag
+} from './library.js';
+import {
   exportLibrary,
+  hydrateLibrary,
   importLibrary,
   loadState,
   resetState,
+  saveLibrary,
   saveState
 } from './storage.js';
 
@@ -18,6 +29,9 @@ const elements = {
   controlSurface: document.querySelector('#controlSurface'),
   mediaTypeControl: document.querySelector('#mediaTypeControl'),
   tagInput: document.querySelector('#tagInput'),
+  tagSuggestions: document.querySelector('#tagSuggestions'),
+  searchHelp: document.querySelector('#searchHelp'),
+  syntaxHelp: document.querySelector('#syntaxHelp'),
   searchForm: document.querySelector('#searchForm'),
   ratingFilters: document.querySelector('#ratingFilters'),
   periodFilters: document.querySelector('#periodFilters'),
@@ -33,12 +47,20 @@ const elements = {
   sectionIconUse: document.querySelector('#sectionIconUse'),
   favoriteCount: document.querySelector('#favoriteCount'),
   resultCount: document.querySelector('#resultCount'),
+  dimensionFilter: document.querySelector('#dimensionFilter'),
+  layoutToggle: document.querySelector('#layoutToggle'),
   gallery: document.querySelector('#gallery'),
   loadingMore: document.querySelector('#loadingMore'),
   loadSentinel: document.querySelector('#loadSentinel'),
   messageBanner: document.querySelector('#messageBanner'),
   messageText: document.querySelector('#messageText'),
   retryButton: document.querySelector('#retryButton'),
+  collectionTools: document.querySelector('#collectionTools'),
+  batchToolbar: document.querySelector('#batchToolbar'),
+  selectionCount: document.querySelector('#selectionCount'),
+  selectVisibleButton: document.querySelector('#selectVisibleButton'),
+  downloadSelectedButton: document.querySelector('#downloadSelectedButton'),
+  clearSelectionButton: document.querySelector('#clearSelectionButton'),
   refreshButton: document.querySelector('#refreshButton'),
   settingsButton: document.querySelector('#settingsButton'),
   settingsDrawer: document.querySelector('#settingsDrawer'),
@@ -49,20 +71,35 @@ const elements = {
   importButton: document.querySelector('#importButton'),
   importFile: document.querySelector('#importFile'),
   resetButton: document.querySelector('#resetButton'),
+  downloadFavoritesButton: document.querySelector('#downloadFavoritesButton'),
+  clearHistoryButton: document.querySelector('#clearHistoryButton'),
   savedSearchButton: document.querySelector('#savedSearchButton'),
   savedSearchDialog: document.querySelector('#savedSearchDialog'),
   closeSavedSearch: document.querySelector('#closeSavedSearch'),
   saveSearchForm: document.querySelector('#saveSearchForm'),
   savedSearchName: document.querySelector('#savedSearchName'),
   savedSearchList: document.querySelector('#savedSearchList'),
+  smartCollectionForm: document.querySelector('#smartCollectionForm'),
+  smartCollectionName: document.querySelector('#smartCollectionName'),
+  smartCollectionTags: document.querySelector('#smartCollectionTags'),
+  smartCollectionMedia: document.querySelector('#smartCollectionMedia'),
+  smartCollectionList: document.querySelector('#smartCollectionList'),
   previewDialog: document.querySelector('#previewDialog'),
   previewStage: document.querySelector('#previewStage'),
   previewMedia: document.querySelector('#previewMedia'),
   previewDetails: document.querySelector('#previewDetails'),
+  previewZoom: document.querySelector('#previewZoom'),
+  zoomOutButton: document.querySelector('#zoomOutButton'),
+  zoomResetButton: document.querySelector('#zoomResetButton'),
+  zoomInButton: document.querySelector('#zoomInButton'),
   closePreview: document.querySelector('#closePreview'),
   previousPreview: document.querySelector('#previousPreview'),
   nextPreview: document.querySelector('#nextPreview'),
   networkStatus: document.querySelector('#networkStatus'),
+  downloadQueue: document.querySelector('#downloadQueue'),
+  downloadQueueSummary: document.querySelector('#downloadQueueSummary'),
+  downloadQueueList: document.querySelector('#downloadQueueList'),
+  clearDownloadQueue: document.querySelector('#clearDownloadQueue'),
   backToTop: document.querySelector('#backToTop'),
   toast: document.querySelector('#toast')
 };
@@ -76,6 +113,18 @@ let activeRequest = null;
 let requestSequence = 0;
 let selectedIndex = -1;
 let toastTimer;
+let renderLimit = 60;
+let suggestionIndex = -1;
+let currentSuggestions = [];
+let lazyMediaObserver;
+let previewZoom = 1;
+let downloadWorkerActive = false;
+let downloadSequence = 0;
+const selectedDownloads = new Set();
+const downloadQueue = [];
+const downloadControllers = new Map();
+const RESPONSE_CACHE_PREFIX = 'atlas-gallery-response:';
+const RESPONSE_CACHE_TTL_MS = 5 * 60 * 1000;
 
 function icon(name) {
   return `<svg class="icon"><use href="#icon-${name}"></use></svg>`;
@@ -137,7 +186,23 @@ function currentSource() {
 }
 
 function visiblePosts() {
-  return state.view === 'favorites' ? Object.values(state.favorites) : posts;
+  let rows;
+
+  if (state.view === 'favorites') {
+    const favorites = Object.values(state.favorites);
+    const collection = state.smartCollections.find(item => item.id === state.activeSmartCollection);
+    rows = collection
+      ? favorites.filter(post => matchesSmartCollection(post, collection))
+      : favorites;
+  } else if (state.view === 'history') {
+    rows = Object.values(state.history).sort((left, right) => {
+      return String(right.viewedAt || '').localeCompare(String(left.viewedAt || ''));
+    });
+  } else {
+    rows = posts;
+  }
+
+  return rows.filter(post => matchesDimension(post, state.dimensionFilter));
 }
 
 function favoriteKey(post) {
@@ -146,6 +211,11 @@ function favoriteKey(post) {
 
 function persist() {
   saveState(state);
+}
+
+function persistLibrary() {
+  persist();
+  return saveLibrary(state);
 }
 
 function showToast(message) {
@@ -221,11 +291,89 @@ function renderSavedSearches() {
   }).join('');
 }
 
+function renderSmartCollections() {
+  elements.smartCollectionList.innerHTML = state.smartCollections.length
+    ? state.smartCollections.map(collection => `
+      <article class="saved-search-item">
+        <div class="saved-search-copy">
+          <strong>${escapeHtml(collection.name)}</strong>
+          <small>${escapeHtml(collection.tags || '全部标签')} · ${collection.mediaType === 'all' ? '全部媒体' : collection.mediaType === 'video' ? '视频' : '图片'}</small>
+        </div>
+        <button class="text-button" type="button" data-apply-collection="${escapeHtml(collection.id)}">查看</button>
+        <button class="more-button" type="button" data-delete-collection="${escapeHtml(collection.id)}" title="删除智能收藏夹">
+          ${icon('delete')}
+        </button>
+      </article>
+    `).join('')
+    : '<p class="compact-note">还没有智能收藏夹。</p>';
+}
+
+function renderCollectionTools() {
+  const inFavorites = state.view === 'favorites';
+  elements.collectionTools.hidden = !inFavorites;
+
+  if (!inFavorites) {
+    return;
+  }
+
+  const collections = state.smartCollections.map(collection => `
+    <button
+      class="filter-chip ${state.activeSmartCollection === collection.id ? 'is-selected' : ''}"
+      type="button"
+      data-smart-collection="${escapeHtml(collection.id)}"
+    >${escapeHtml(collection.name)}</button>
+  `).join('');
+
+  elements.collectionTools.innerHTML = `
+    <strong>智能收藏夹</strong>
+    <button class="filter-chip ${state.activeSmartCollection ? '' : 'is-selected'}" type="button" data-smart-collection="">全部</button>
+    ${collections}
+    <button class="text-button" type="button" data-open-smart-collections>管理</button>
+    <button class="outlined-button" type="button" data-download-view>
+      ${icon('download')}下载当前收藏
+    </button>
+  `;
+}
+
+function dynamicTagCandidates() {
+  return [
+    ...posts.flatMap(post => post.tags || []),
+    ...Object.values(state.favorites).flatMap(post => post.tags || []),
+    ...state.recentSearches
+  ];
+}
+
+function renderTagSuggestions() {
+  currentSuggestions = suggestTags(elements.tagInput.value, dynamicTagCandidates());
+  suggestionIndex = Math.min(suggestionIndex, currentSuggestions.length - 1);
+  elements.tagSuggestions.hidden = currentSuggestions.length === 0;
+  elements.tagSuggestions.innerHTML = currentSuggestions.map((suggestion, index) => `
+    <button
+      class="tag-suggestion ${index === suggestionIndex ? 'is-active' : ''}"
+      type="button"
+      role="option"
+      aria-selected="${index === suggestionIndex}"
+      data-tag-suggestion="${escapeHtml(suggestion.tag)}"
+    >
+      <span>${escapeHtml(suggestion.tag)}</span>
+      <small>${escapeHtml(suggestion.translation || '站点标签')}</small>
+    </button>
+  `).join('');
+}
+
+function applyTagSuggestion(tag) {
+  elements.tagInput.value = replaceCurrentTag(elements.tagInput.value, tag);
+  elements.tagSuggestions.hidden = true;
+  suggestionIndex = -1;
+  elements.tagInput.focus();
+}
+
 function renderControls() {
   document.documentElement.dataset.theme = state.settings.theme;
   document.documentElement.dataset.accent = state.settings.accent;
   document.documentElement.dataset.compact = String(state.settings.compactGrid);
   document.documentElement.dataset.reduceMotion = String(state.settings.reduceMotion);
+  elements.gallery.dataset.layout = state.settings.galleryLayout;
 
   document.querySelectorAll('[data-view]').forEach(button => {
     button.classList.toggle('is-active', button.dataset.view === state.view);
@@ -245,6 +393,9 @@ function renderControls() {
   document.querySelectorAll('[data-accent-value]').forEach(button => {
     button.classList.toggle('is-selected', button.dataset.accentValue === state.settings.accent);
   });
+  document.querySelectorAll('[data-layout]').forEach(button => {
+    button.classList.toggle('is-active', button.dataset.layout === state.settings.galleryLayout);
+  });
   document.querySelectorAll('[data-setting]').forEach(input => {
     input.checked = Boolean(state.settings[input.dataset.setting]);
   });
@@ -252,7 +403,7 @@ function renderControls() {
   const source = currentSource();
   const supportsDate = source.capabilities.date;
   const supportsVideo = source.capabilities.video;
-  elements.controlSurface.hidden = state.view === 'favorites';
+  elements.controlSurface.hidden = state.view !== 'popular';
   elements.dateFilter.classList.toggle('is-disabled', !supportsDate);
   elements.dateFilter.querySelectorAll('button, input').forEach(control => {
     control.disabled = !supportsDate;
@@ -267,18 +418,27 @@ function renderControls() {
   elements.anchorDate.value = state.anchorDate;
   elements.anchorDate.max = formatDate(new Date());
   elements.proxyTemplate.value = state.settings.proxyTemplate;
+  elements.dimensionFilter.value = state.dimensionFilter;
   elements.favoriteCount.textContent = Object.keys(state.favorites).length;
 
   renderSources();
   renderRecentSearches();
+  renderCollectionTools();
   persist();
 }
 
 function renderHeader() {
   if (state.view === 'favorites') {
     elements.sectionTitle.textContent = '我的收藏';
-    elements.sectionSubtitle.textContent = '收藏内容保存在当前浏览器，可导入或导出备份';
+    elements.sectionSubtitle.textContent = '收藏已持久化保存，可筛选并批量下载';
     elements.sectionIconUse.setAttribute('href', '#icon-favorite');
+    return;
+  }
+
+  if (state.view === 'history') {
+    elements.sectionTitle.textContent = '浏览历史';
+    elements.sectionSubtitle.textContent = '保留最近 200 个打开过的媒体项目';
+    elements.sectionIconUse.setAttribute('href', '#icon-history');
     return;
   }
 
@@ -289,11 +449,14 @@ function renderHeader() {
 
 function emptyState() {
   const favoritesView = state.view === 'favorites';
-  const title = favoritesView ? '还没有收藏内容' : '没有找到可展示的内容';
+  const historyView = state.view === 'history';
+  const title = favoritesView
+    ? '还没有收藏内容'
+    : historyView ? '还没有浏览历史' : '没有找到可展示的内容';
   const description = favoritesView
     ? '浏览图库并点击心形按钮，即可在这里集中查看。'
-    : '调整标签、媒体类型或内容分级后重试。';
-  const iconName = favoritesView ? 'favorite' : state.mediaType;
+    : historyView ? '打开图片或视频预览后，会在这里留下记录。' : '调整标签、媒体类型或内容分级后重试。';
+  const iconName = favoritesView ? 'favorite' : historyView ? 'history' : state.mediaType;
 
   return `
     <div class="empty-state">
@@ -315,22 +478,37 @@ function postCard(post, index) {
   const isSensitive = state.settings.blurSensitive && post.rating !== 'safe';
   const preview = post.preview || post.sample || post.file;
   const mediaName = post.type === 'video' ? '视频' : '图片';
+  const hasNotes = Boolean(post.favoriteNote || post.favoriteLabels?.length);
+  const width = Number(post.width) || 4;
+  const height = Number(post.height) || 3;
+  const aspectRatio = Math.min(3, Math.max(0.4, width / height));
 
   return `
-    <article class="media-card ${isSensitive ? 'is-sensitive' : ''}">
+    <article
+      class="media-card ${isSensitive ? 'is-sensitive' : ''}"
+      data-post-key="${escapeHtml(favoriteKey(post))}"
+      style="--media-aspect: ${aspectRatio}"
+    >
+      <label class="select-media" title="选择此媒体">
+        <input type="checkbox" data-select-download="${index}" ${selectedDownloads.has(favoriteKey(post)) ? 'checked' : ''}>
+      </label>
       <button class="media-button" type="button" data-open-preview="${index}" aria-label="预览帖子 ${escapeHtml(post.id)}">
         <img
-          src="${escapeHtml(preview)}"
+          data-src="${escapeHtml(preview)}"
           alt="${escapeHtml(post.tags?.slice(0, 6).join(', ') || `帖子 ${post.id}`)}"
           loading="lazy"
           decoding="async"
         >
         <span class="media-badge">${icon(post.type)}${mediaName}</span>
         <span class="rating-badge">${ratingName(post.rating)}</span>
+        ${hasNotes ? `<span class="note-badge" title="包含收藏备注">${icon('bookmark')}</span>` : ''}
       </button>
       <footer class="card-footer">
         <span class="score">▲ ${Number(post.score) || 0}</span>
         <span class="dimensions">${Number(post.width) || 0} × ${Number(post.height) || 0}</span>
+        <button class="download-button" type="button" data-download-post="${index}" title="下载媒体">
+          ${icon('download')}
+        </button>
         <button
           class="favorite-button ${isFavorite ? 'is-active' : ''}"
           type="button"
@@ -342,14 +520,63 @@ function postCard(post, index) {
   `;
 }
 
-function renderGallery() {
+function observeLazyMedia() {
+  lazyMediaObserver?.disconnect();
+  lazyMediaObserver = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) {
+        return;
+      }
+
+      const image = entry.target;
+      image.addEventListener('load', () => image.classList.add('is-loaded'), { once: true });
+      image.addEventListener('error', () => image.classList.add('is-loaded'), { once: true });
+      image.src = image.dataset.src;
+      image.removeAttribute('data-src');
+      lazyMediaObserver.unobserve(image);
+    });
+  }, { rootMargin: '600px 0px' });
+
+  elements.gallery.querySelectorAll('img[data-src]').forEach(image => lazyMediaObserver.observe(image));
+}
+
+function renderBatchToolbar() {
+  elements.batchToolbar.hidden = selectedDownloads.size === 0;
+  elements.selectionCount.textContent = `已选择 ${selectedDownloads.size} 项`;
+  elements.downloadSelectedButton.disabled = selectedDownloads.size === 0;
+}
+
+function renderGallery({ append = false } = {}) {
   const rows = visiblePosts();
+  const renderedRows = rows.slice(0, renderLimit);
+  const existingCards = [...elements.gallery.querySelectorAll('.media-card')];
+  const canAppend = append
+    && existingCards.length > 0
+    && existingCards.length < renderedRows.length
+    && existingCards.every((card, index) => {
+      return card.dataset.postKey === favoriteKey(renderedRows[index]);
+    });
+
   renderHeader();
   elements.resultCount.textContent = `${rows.length} 项`;
   elements.favoriteCount.textContent = Object.keys(state.favorites).length;
-  elements.gallery.innerHTML = rows.length
-    ? rows.map(postCard).join('')
-    : emptyState();
+
+  if (canAppend) {
+    elements.gallery.insertAdjacentHTML(
+      'beforeend',
+      renderedRows.slice(existingCards.length).map((post, index) => {
+        return postCard(post, existingCards.length + index);
+      }).join('')
+    );
+  } else {
+    elements.gallery.innerHTML = renderedRows.length
+      ? renderedRows.map(postCard).join('')
+      : emptyState();
+  }
+
+  observeLazyMedia();
+  renderCollectionTools();
+  renderBatchToolbar();
 }
 
 function buildRequestUrl(upstreamUrl) {
@@ -362,7 +589,37 @@ function buildRequestUrl(upstreamUrl) {
   return `/api/proxy?url=${encodeURIComponent(upstreamUrl)}`;
 }
 
-async function requestJson(upstreamUrl, signal) {
+function readResponseCache(upstreamUrl, allowExpired = false) {
+  try {
+    const cached = JSON.parse(sessionStorage.getItem(`${RESPONSE_CACHE_PREFIX}${upstreamUrl}`));
+    if (!cached || !allowExpired && Date.now() - cached.savedAt > RESPONSE_CACHE_TTL_MS) {
+      return null;
+    }
+    return cached.payload;
+  } catch {
+    return null;
+  }
+}
+
+function writeResponseCache(upstreamUrl, payload) {
+  try {
+    sessionStorage.setItem(`${RESPONSE_CACHE_PREFIX}${upstreamUrl}`, JSON.stringify({
+      savedAt: Date.now(),
+      payload
+    }));
+  } catch {
+    // Browsing still works when session storage is full or unavailable.
+  }
+}
+
+async function requestJson(upstreamUrl, signal, force = false) {
+  if (!force) {
+    const cached = readResponseCache(upstreamUrl);
+    if (cached) {
+      return cached;
+    }
+  }
+
   const response = await fetch(buildRequestUrl(upstreamUrl), {
     signal,
     credentials: 'omit',
@@ -383,15 +640,17 @@ async function requestJson(upstreamUrl, signal) {
     throw new Error(detail || `HTTP ${response.status}`);
   }
 
-  return response.json();
+  const payload = await response.json();
+  writeResponseCache(upstreamUrl, payload);
+  return payload;
 }
 
-async function requestWithRetry(upstreamUrl, signal) {
+async function requestWithRetry(upstreamUrl, signal, force = false) {
   let firstError;
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      return await requestJson(upstreamUrl, signal);
+      return await requestJson(upstreamUrl, signal, force);
     } catch (error) {
       if (error.name === 'AbortError') {
         throw error;
@@ -404,6 +663,11 @@ async function requestWithRetry(upstreamUrl, signal) {
     }
   }
 
+  const staleCache = readResponseCache(upstreamUrl, true);
+  if (staleCache) {
+    showToast('网络请求失败，已显示缓存结果');
+    return staleCache;
+  }
   throw firstError;
 }
 
@@ -416,7 +680,7 @@ function filterPosts(rows) {
   });
 }
 
-async function fetchPosts({ reset = false } = {}) {
+async function fetchPosts({ reset = false, force = false } = {}) {
   if (state.view === 'favorites' || isLoading && !reset || !hasMore && !reset) {
     return;
   }
@@ -424,6 +688,8 @@ async function fetchPosts({ reset = false } = {}) {
   if (reset) {
     activeRequest?.abort();
     posts = [];
+    renderLimit = 60;
+    selectedDownloads.clear();
     currentPage = 1;
     hasMore = true;
     hideMessage();
@@ -440,7 +706,7 @@ async function fetchPosts({ reset = false } = {}) {
   try {
     const source = currentSource();
     const upstreamUrl = source.buildUrl(currentQuery()).href;
-    const payload = await requestWithRetry(upstreamUrl, controller.signal);
+    const payload = await requestWithRetry(upstreamUrl, controller.signal, force);
 
     if (sequence !== requestSequence) {
       return;
@@ -503,21 +769,170 @@ function changeSource(sourceId) {
   fetchPosts({ reset: true });
 }
 
-function toggleFavorite(post) {
+async function toggleFavorite(post) {
+  saveVideoProgress(post, elements.previewMedia.querySelector('video'), true);
   const key = favoriteKey(post);
   if (state.favorites[key]) {
     delete state.favorites[key];
     showToast('已取消收藏');
   } else {
+    const duplicate = Object.entries(state.favorites).find(([favoriteId, favorite]) => {
+      return favoriteId !== key && mediaIdentity(favorite) === mediaIdentity(post);
+    });
     state.favorites[key] = post;
-    showToast('已添加到收藏');
+    showToast(duplicate ? `已收藏，与 ${duplicate[0]} 使用相同文件` : '已添加到收藏');
   }
 
-  persist();
+  await persistLibrary();
   renderGallery();
   if (elements.previewDialog.open) {
     renderPreview();
   }
+}
+
+async function recordHistory(post) {
+  const key = favoriteKey(post);
+  const entries = Object.entries({
+    ...state.history,
+    [key]: {
+      ...post,
+      viewedAt: new Date().toISOString()
+    }
+  }).sort(([, left], [, right]) => {
+    return String(right.viewedAt || '').localeCompare(String(left.viewedAt || ''));
+  }).slice(0, 200);
+
+  state.history = Object.fromEntries(entries);
+  await persistLibrary();
+}
+
+async function downloadPost(post, { quiet = false, signal } = {}) {
+  const filename = downloadFilename(post);
+  const url = `/api/download?url=${encodeURIComponent(post.file)}&filename=${encodeURIComponent(filename)}`;
+  const response = await fetch(url, { credentials: 'same-origin', signal });
+
+  if (!response.ok) {
+    let message = `HTTP ${response.status}`;
+    try {
+      message = (await response.json()).error || message;
+    } catch {
+      // Keep the HTTP status fallback.
+    }
+    throw new Error(message);
+  }
+
+  const blobUrl = URL.createObjectURL(await response.blob());
+  const link = document.createElement('a');
+  link.href = blobUrl;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+
+  if (!quiet) {
+    showToast(`已下载 ${filename}`);
+  }
+}
+
+function renderDownloadQueue() {
+  const activeItems = downloadQueue.filter(item => !['done', 'cancelled'].includes(item.status));
+  const completed = downloadQueue.filter(item => item.status === 'done').length;
+  elements.downloadQueue.hidden = downloadQueue.length === 0;
+  elements.downloadQueueSummary.textContent = `${activeItems.length} 进行中 · ${completed} 已完成`;
+  elements.downloadQueueList.innerHTML = downloadQueue.map(item => {
+    const statusText = {
+      pending: '等待中',
+      running: '下载中',
+      done: '已完成',
+      error: '失败',
+      cancelled: '已取消'
+    }[item.status];
+    const action = item.status === 'error'
+      ? `<button class="mini-icon-button" type="button" data-retry-download="${item.id}" title="重试">${icon('retry')}</button>`
+      : ['pending', 'running'].includes(item.status)
+        ? `<button class="mini-icon-button" type="button" data-cancel-download="${item.id}" title="取消">${icon('close')}</button>`
+        : '';
+
+    return `
+      <article class="download-item is-${item.status}">
+        <img src="${escapeHtml(item.post.preview || item.post.sample || '')}" alt="" loading="lazy">
+        <div>
+          <strong>${escapeHtml(item.filename)}</strong>
+          <small>${statusText}${item.error ? ` · ${escapeHtml(item.error)}` : ''}</small>
+        </div>
+        ${action}
+      </article>
+    `;
+  }).join('');
+}
+
+async function runDownloadItem(item) {
+  const controller = new AbortController();
+  downloadControllers.set(item.id, controller);
+  item.status = 'running';
+  item.error = '';
+  renderDownloadQueue();
+
+  try {
+    await downloadPost(item.post, { quiet: true, signal: controller.signal });
+    item.status = 'done';
+  } catch (error) {
+    item.status = error.name === 'AbortError' ? 'cancelled' : 'error';
+    item.error = error.name === 'AbortError' ? '' : error.message;
+  } finally {
+    downloadControllers.delete(item.id);
+    renderDownloadQueue();
+  }
+}
+
+async function processDownloadQueue() {
+  if (downloadWorkerActive) {
+    return;
+  }
+
+  downloadWorkerActive = true;
+  while (downloadQueue.some(item => item.status === 'pending')) {
+    const batch = downloadQueue.filter(item => item.status === 'pending').slice(0, 2);
+    await Promise.all(batch.map(runDownloadItem));
+  }
+  downloadWorkerActive = false;
+}
+
+function downloadPosts(rows) {
+  const uniqueRows = [...new Map(rows.filter(post => post?.file).map(post => [favoriteKey(post), post])).values()];
+  if (!uniqueRows.length) {
+    showToast('没有可下载的媒体');
+    return;
+  }
+
+  uniqueRows.forEach(post => {
+    const existing = downloadQueue.find(item => {
+      return favoriteKey(item.post) === favoriteKey(post)
+        && ['pending', 'running'].includes(item.status);
+    });
+    if (!existing) {
+      downloadQueue.push({
+        id: String(++downloadSequence),
+        post,
+        filename: downloadFilename(post),
+        status: 'pending',
+        error: ''
+      });
+    }
+  });
+  renderDownloadQueue();
+  processDownloadQueue();
+  showToast(`已加入下载队列，共 ${uniqueRows.length} 项`);
+}
+
+function selectedPosts() {
+  const allPosts = new Map([
+    ...posts,
+    ...Object.values(state.favorites),
+    ...Object.values(state.history)
+  ].map(post => [favoriteKey(post), post]));
+  return [...selectedDownloads].map(key => allPosts.get(key)).filter(Boolean);
 }
 
 function previewDate(post) {
@@ -530,6 +945,50 @@ function previewDate(post) {
   return Number.isNaN(date.getTime()) ? '未知' : date.toLocaleString('zh-CN');
 }
 
+function setPreviewZoom(value) {
+  previewZoom = Math.min(4, Math.max(0.5, value));
+  const image = elements.previewMedia.querySelector('img');
+  if (image) {
+    image.style.transform = `scale(${previewZoom})`;
+    image.classList.toggle('is-zoomed', previewZoom > 1);
+  }
+  elements.zoomResetButton.textContent = `${Math.round(previewZoom * 100)}%`;
+}
+
+function saveVideoProgress(post, video, force = false) {
+  if (!post || !video || !Number.isFinite(video.currentTime)) {
+    return;
+  }
+  const key = favoriteKey(post);
+  const previous = Number(state.videoProgress[key]) || 0;
+  if (video.duration && video.currentTime >= video.duration - 3) {
+    delete state.videoProgress[key];
+  } else if (force || Math.abs(video.currentTime - previous) >= 5) {
+    state.videoProgress[key] = Math.round(video.currentTime * 10) / 10;
+  } else {
+    return;
+  }
+  persist();
+}
+
+async function saveFavoriteMetadata(post) {
+  const favorite = state.favorites[favoriteKey(post)];
+  if (!favorite) {
+    showToast('请先收藏此媒体');
+    return;
+  }
+
+  favorite.favoriteNote = document.querySelector('#favoriteNote').value.trim();
+  favorite.favoriteLabels = document.querySelector('#favoriteLabels').value
+    .split(/[,，]/)
+    .map(label => label.trim())
+    .filter(Boolean)
+    .slice(0, 12);
+  await persistLibrary();
+  renderGallery();
+  showToast('收藏备注已保存');
+}
+
 function renderPreview() {
   const rows = visiblePosts();
   const post = rows[selectedIndex];
@@ -539,7 +998,9 @@ function renderPreview() {
   }
 
   const mediaUrl = post.type === 'video' ? post.file : post.sample || post.file;
+  previewZoom = 1;
   elements.previewDialog.classList.toggle('hide-details', state.settings.hideDetails);
+  elements.previewZoom.hidden = post.type === 'video';
   elements.previewMedia.innerHTML = post.type === 'video'
     ? `
       <video
@@ -547,13 +1008,16 @@ function renderPreview() {
         poster="${escapeHtml(post.preview)}"
         controls
         playsinline
-        ${state.settings.autoplay ? 'autoplay muted' : ''}
+        ${state.settings.autoplay ? 'autoplay' : ''}
+        ${state.settings.videoMuted ? 'muted' : ''}
+        ${state.settings.videoLoop ? 'loop' : ''}
       ></video>
     `
     : `<img src="${escapeHtml(mediaUrl)}" alt="${escapeHtml(post.tags?.join(', ') || `帖子 ${post.id}`)}">`;
 
   const source = getSource(post.source);
-  const isFavorite = Boolean(state.favorites[favoriteKey(post)]);
+  const favorite = state.favorites[favoriteKey(post)];
+  const isFavorite = Boolean(favorite);
   const tags = Array.isArray(post.tags) ? post.tags.slice(0, 100) : [];
 
   elements.previewDetails.innerHTML = `
@@ -567,8 +1031,23 @@ function renderPreview() {
       <div><dt>发布时间</dt><dd>${escapeHtml(previewDate(post))}</dd></div>
     </dl>
     <div class="preview-tags">
-      ${tags.map(tag => `<button class="preview-tag" type="button" data-search-tag="${escapeHtml(tag)}">${escapeHtml(tag)}</button>`).join('')}
+      ${tags.map(tag => {
+        const translation = translateTag(tag);
+        return `<button class="preview-tag" type="button" data-search-tag="${escapeHtml(tag)}" title="${escapeHtml(translation)}">${escapeHtml(tag)}${translation ? ` · ${escapeHtml(translation)}` : ''}</button>`;
+      }).join('')}
     </div>
+    <section class="favorite-metadata ${isFavorite ? '' : 'is-disabled'}">
+      <h3>收藏整理</h3>
+      <label class="text-field compact">
+        <span>自定义标签</span>
+        <input id="favoriteLabels" value="${escapeHtml(favorite?.favoriteLabels?.join(', ') || '')}" placeholder="壁纸, 待整理" ${isFavorite ? '' : 'disabled'}>
+      </label>
+      <label class="text-field compact">
+        <span>备注</span>
+        <textarea id="favoriteNote" rows="3" maxlength="500" placeholder="记录来源、用途或想法" ${isFavorite ? '' : 'disabled'}>${escapeHtml(favorite?.favoriteNote || '')}</textarea>
+      </label>
+      <button class="tonal-button" id="saveFavoriteMetadata" type="button" ${isFavorite ? '' : 'disabled'}>保存备注</button>
+    </section>
     <div class="preview-actions">
       <button class="outlined-button" id="previewFavorite" type="button">
         ${icon('favorite')}${isFavorite ? '取消收藏' : '收藏'}
@@ -576,9 +1055,9 @@ function renderPreview() {
       <button class="outlined-button" id="copyTags" type="button">
         ${icon('copy')}复制标签
       </button>
-      <a class="filled-button wide" href="${escapeHtml(post.file)}" target="_blank" rel="noreferrer">
-        ${icon('download')}打开原文件
-      </a>
+      <button class="filled-button wide" id="previewDownload" type="button">
+        ${icon('download')}下载文件
+      </button>
       <a class="outlined-button wide" href="${escapeHtml(post.postUrl)}" target="_blank" rel="noreferrer">
         ${icon('external')}打开原帖
       </a>
@@ -589,17 +1068,40 @@ function renderPreview() {
   elements.nextPreview.disabled = selectedIndex >= rows.length - 1;
   document.querySelector('#previewFavorite').addEventListener('click', () => toggleFavorite(post));
   document.querySelector('#copyTags').addEventListener('click', () => copyTags(post));
+  document.querySelector('#previewDownload').addEventListener('click', () => {
+    downloadPosts([post]);
+  });
+  document.querySelector('#saveFavoriteMetadata').addEventListener('click', () => saveFavoriteMetadata(post));
+
+  const video = elements.previewMedia.querySelector('video');
+  if (video) {
+    const savedTime = Number(state.videoProgress[favoriteKey(post)]) || 0;
+    video.addEventListener('loadedmetadata', () => {
+      if (savedTime > 0 && savedTime < video.duration - 3) {
+        video.currentTime = savedTime;
+      }
+    }, { once: true });
+    video.addEventListener('timeupdate', () => saveVideoProgress(post, video));
+    video.addEventListener('pause', () => saveVideoProgress(post, video, true));
+    video.addEventListener('ended', () => saveVideoProgress(post, video, true));
+  }
 }
 
 function openPreview(index) {
   selectedIndex = index;
+  const post = visiblePosts()[selectedIndex];
   renderPreview();
   if (!elements.previewDialog.open) {
     elements.previewDialog.showModal();
   }
+  if (post && state.view !== 'history') {
+    recordHistory(post);
+  }
 }
 
 function closePreview() {
+  const post = visiblePosts()[selectedIndex];
+  saveVideoProgress(post, elements.previewMedia.querySelector('video'), true);
   elements.previewMedia.innerHTML = '';
   if (elements.previewDialog.open) {
     elements.previewDialog.close();
@@ -610,6 +1112,8 @@ function closePreview() {
 function movePreview(step) {
   const nextIndex = selectedIndex + step;
   if (nextIndex >= 0 && nextIndex < visiblePosts().length) {
+    const post = visiblePosts()[selectedIndex];
+    saveVideoProgress(post, elements.previewMedia.querySelector('video'), true);
     selectedIndex = nextIndex;
     renderPreview();
   }
@@ -674,6 +1178,21 @@ function saveCurrentSearch(name) {
   showToast('搜索集已保存');
 }
 
+function createSmartCollection(name, tags, mediaType) {
+  state.smartCollections.unshift({
+    id: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    name,
+    tags: tags.trim(),
+    mediaType
+  });
+  state.smartCollections = state.smartCollections.slice(0, 30);
+  persist();
+  renderSmartCollections();
+  renderCollectionTools();
+  elements.smartCollectionForm.reset();
+  showToast('智能收藏夹已创建');
+}
+
 function applySavedSearch(savedSearch) {
   state = {
     ...state,
@@ -703,7 +1222,7 @@ function exportData() {
 async function importData(file) {
   try {
     state = importLibrary(await file.text(), state);
-    persist();
+    await persistLibrary();
     renderControls();
     renderGallery();
     showToast('收藏数据已导入');
@@ -731,9 +1250,12 @@ function registerEvents() {
 
     if (button.dataset.view) {
       state.view = button.dataset.view;
+      state.activeSmartCollection = state.view === 'favorites' ? state.activeSmartCollection : '';
+      renderLimit = 60;
+      selectedDownloads.clear();
       activeRequest?.abort();
       renderControls();
-      state.view === 'favorites' ? renderGallery() : fetchPosts({ reset: true });
+      state.view === 'popular' ? fetchPosts({ reset: true }) : renderGallery();
     }
 
     if (button.dataset.source) {
@@ -784,6 +1306,80 @@ function registerEvents() {
       toggleFavorite(visiblePosts()[Number(button.dataset.toggleFavorite)]);
     }
 
+    if (button.dataset.downloadPost !== undefined) {
+      const post = visiblePosts()[Number(button.dataset.downloadPost)];
+      downloadPosts([post]);
+    }
+
+    if (button.dataset.layout) {
+      state.settings.galleryLayout = button.dataset.layout;
+      renderControls();
+      renderGallery();
+    }
+
+    if (button.dataset.cancelDownload) {
+      const item = downloadQueue.find(entry => entry.id === button.dataset.cancelDownload);
+      if (item?.status === 'pending') {
+        item.status = 'cancelled';
+      }
+      downloadControllers.get(button.dataset.cancelDownload)?.abort();
+      renderDownloadQueue();
+    }
+
+    if (button.dataset.retryDownload) {
+      const item = downloadQueue.find(entry => entry.id === button.dataset.retryDownload);
+      if (item) {
+        item.status = 'pending';
+        item.error = '';
+        renderDownloadQueue();
+        processDownloadQueue();
+      }
+    }
+
+    if (button.dataset.tagSuggestion) {
+      applyTagSuggestion(button.dataset.tagSuggestion);
+    }
+
+    if (button.dataset.smartCollection !== undefined) {
+      state.view = 'favorites';
+      state.activeSmartCollection = button.dataset.smartCollection;
+      renderLimit = 60;
+      persist();
+      renderControls();
+      renderGallery();
+    }
+
+    if (button.hasAttribute('data-open-smart-collections')) {
+      renderSmartCollections();
+      elements.savedSearchDialog.showModal();
+    }
+
+    if (button.hasAttribute('data-download-view')) {
+      downloadPosts(visiblePosts());
+    }
+
+    if (button.dataset.applyCollection) {
+      state.view = 'favorites';
+      state.activeSmartCollection = button.dataset.applyCollection;
+      elements.savedSearchDialog.close();
+      renderLimit = 60;
+      persist();
+      renderControls();
+      renderGallery();
+    }
+
+    if (button.dataset.deleteCollection) {
+      state.smartCollections = state.smartCollections.filter(collection => {
+        return collection.id !== button.dataset.deleteCollection;
+      });
+      if (state.activeSmartCollection === button.dataset.deleteCollection) {
+        state.activeSmartCollection = '';
+      }
+      persist();
+      renderSmartCollections();
+      renderGallery();
+    }
+
     if (button.dataset.searchTag) {
       state.view = 'popular';
       state.tags = button.dataset.searchTag;
@@ -803,11 +1399,60 @@ function registerEvents() {
     }
   });
 
+  elements.gallery.addEventListener('change', event => {
+    const input = event.target.closest('[data-select-download]');
+    if (!input) {
+      return;
+    }
+
+    const post = visiblePosts()[Number(input.dataset.selectDownload)];
+    const key = favoriteKey(post);
+    input.checked ? selectedDownloads.add(key) : selectedDownloads.delete(key);
+    renderBatchToolbar();
+  });
+
   elements.searchForm.addEventListener('submit', event => {
     event.preventDefault();
+    elements.tagSuggestions.hidden = true;
+    elements.syntaxHelp.hidden = true;
     applySearch();
   });
-  elements.refreshButton.addEventListener('click', () => fetchPosts({ reset: true }));
+  elements.tagInput.addEventListener('input', () => {
+    suggestionIndex = -1;
+    elements.syntaxHelp.hidden = true;
+    renderTagSuggestions();
+  });
+  elements.tagInput.addEventListener('keydown', event => {
+    if (elements.tagSuggestions.hidden || !currentSuggestions.length) {
+      return;
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      suggestionIndex = (suggestionIndex + 1) % currentSuggestions.length;
+      renderTagSuggestions();
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      suggestionIndex = (suggestionIndex - 1 + currentSuggestions.length) % currentSuggestions.length;
+      renderTagSuggestions();
+    } else if (event.key === 'Enter' && suggestionIndex >= 0) {
+      event.preventDefault();
+      applyTagSuggestion(currentSuggestions[suggestionIndex].tag);
+    } else if (event.key === 'Escape') {
+      elements.tagSuggestions.hidden = true;
+    }
+  });
+  elements.searchHelp.addEventListener('click', () => {
+    elements.tagSuggestions.hidden = true;
+    elements.syntaxHelp.hidden = !elements.syntaxHelp.hidden;
+  });
+  document.addEventListener('click', event => {
+    if (!event.target.closest('.search-wrap')) {
+      elements.tagSuggestions.hidden = true;
+      elements.syntaxHelp.hidden = true;
+    }
+  });
+  elements.refreshButton.addEventListener('click', () => fetchPosts({ reset: true, force: true }));
   elements.retryButton.addEventListener('click', () => fetchPosts({ reset: true }));
   elements.settingsButton.addEventListener('click', openDrawer);
   document.querySelectorAll('[data-close-drawer]').forEach(button => {
@@ -819,6 +1464,12 @@ function registerEvents() {
     state.anchorDate = elements.anchorDate.value || formatDate(new Date());
     renderControls();
     fetchPosts({ reset: true });
+  });
+  elements.dimensionFilter.addEventListener('change', () => {
+    state.dimensionFilter = elements.dimensionFilter.value;
+    renderLimit = 60;
+    renderControls();
+    renderGallery();
   });
 
   elements.themeControl.addEventListener('click', event => {
@@ -859,6 +1510,37 @@ function registerEvents() {
   });
 
   elements.exportButton.addEventListener('click', exportData);
+  elements.downloadFavoritesButton.addEventListener('click', () => {
+    downloadPosts(Object.values(state.favorites));
+  });
+  elements.clearHistoryButton.addEventListener('click', async () => {
+    if (!window.confirm('清空全部浏览历史？')) {
+      return;
+    }
+    state.history = {};
+    await persistLibrary();
+    if (state.view === 'history') {
+      renderGallery();
+    }
+    showToast('浏览历史已清空');
+  });
+  elements.selectVisibleButton.addEventListener('click', () => {
+    visiblePosts().forEach(post => selectedDownloads.add(favoriteKey(post)));
+    renderGallery();
+  });
+  elements.clearSelectionButton.addEventListener('click', () => {
+    selectedDownloads.clear();
+    renderGallery();
+  });
+  elements.downloadSelectedButton.addEventListener('click', () => downloadPosts(selectedPosts()));
+  elements.clearDownloadQueue.addEventListener('click', () => {
+    for (let index = downloadQueue.length - 1; index >= 0; index -= 1) {
+      if (['done', 'cancelled'].includes(downloadQueue[index].status)) {
+        downloadQueue.splice(index, 1);
+      }
+    }
+    renderDownloadQueue();
+  });
   elements.importButton.addEventListener('click', () => elements.importFile.click());
   elements.importFile.addEventListener('change', () => {
     const [file] = elements.importFile.files;
@@ -866,11 +1548,11 @@ function registerEvents() {
       importData(file);
     }
   });
-  elements.resetButton.addEventListener('click', () => {
+  elements.resetButton.addEventListener('click', async () => {
     if (!window.confirm('清除全部收藏、搜索集和全局设置？')) {
       return;
     }
-    state = resetState();
+    state = await resetState();
     state.anchorDate = formatDate(new Date());
     closeDrawer();
     renderControls();
@@ -880,6 +1562,7 @@ function registerEvents() {
 
   elements.savedSearchButton.addEventListener('click', () => {
     renderSavedSearches();
+    renderSmartCollections();
     elements.savedSearchDialog.showModal();
   });
   elements.closeSavedSearch.addEventListener('click', () => elements.savedSearchDialog.close());
@@ -887,23 +1570,60 @@ function registerEvents() {
     event.preventDefault();
     saveCurrentSearch(elements.savedSearchName.value.trim());
   });
+  elements.smartCollectionForm.addEventListener('submit', event => {
+    event.preventDefault();
+    createSmartCollection(
+      elements.smartCollectionName.value.trim(),
+      elements.smartCollectionTags.value,
+      elements.smartCollectionMedia.value
+    );
+  });
 
   elements.closePreview.addEventListener('click', closePreview);
   elements.previousPreview.addEventListener('click', () => movePreview(-1));
   elements.nextPreview.addEventListener('click', () => movePreview(1));
+  elements.zoomInButton.addEventListener('click', () => setPreviewZoom(previewZoom + 0.25));
+  elements.zoomOutButton.addEventListener('click', () => setPreviewZoom(previewZoom - 0.25));
+  elements.zoomResetButton.addEventListener('click', () => setPreviewZoom(1));
+  elements.previewStage.addEventListener('wheel', event => {
+    if (!elements.previewDialog.open || elements.previewZoom.hidden) {
+      return;
+    }
+    event.preventDefault();
+    setPreviewZoom(previewZoom + (event.deltaY < 0 ? 0.25 : -0.25));
+  }, { passive: false });
   elements.previewDialog.addEventListener('close', () => {
+    const post = visiblePosts()[selectedIndex];
+    saveVideoProgress(post, elements.previewMedia.querySelector('video'), true);
     elements.previewMedia.innerHTML = '';
     selectedIndex = -1;
   });
 
   document.addEventListener('keydown', event => {
-    if (!elements.previewDialog.open) {
+    const typing = event.target.matches('input, textarea, select');
+    if (!elements.previewDialog.open || typing) {
       return;
     }
     if (event.key === 'ArrowLeft') {
       movePreview(-1);
     } else if (event.key === 'ArrowRight') {
       movePreview(1);
+    } else if (event.key.toLowerCase() === 'f') {
+      const post = visiblePosts()[selectedIndex];
+      if (post) {
+        toggleFavorite(post);
+      }
+    } else if (event.key.toLowerCase() === 'd') {
+      const post = visiblePosts()[selectedIndex];
+      if (post) {
+        downloadPosts([post]);
+      }
+    } else if (event.key === '+' || event.key === '=') {
+      setPreviewZoom(previewZoom + 0.25);
+    } else if (event.key === '-') {
+      setPreviewZoom(previewZoom - 0.25);
+    } else if (event.key === '0') {
+      setPreviewZoom(1);
     }
   });
 
@@ -917,7 +1637,7 @@ function registerEvents() {
   });
 }
 
-function initialize() {
+async function initialize() {
   if (!state.anchorDate) {
     state.anchorDate = formatDate(new Date());
   }
@@ -926,6 +1646,8 @@ function initialize() {
     state.source = 'konachan';
   }
 
+  await hydrateLibrary(state);
+  saveState(state);
   registerEvents();
   updateNetworkStatus();
   renderControls();
@@ -933,7 +1655,13 @@ function initialize() {
 
   const observer = new IntersectionObserver(entries => {
     if (entries[0].isIntersecting) {
-      fetchPosts();
+      const rows = visiblePosts();
+      if (renderLimit < rows.length) {
+        renderLimit += 40;
+        renderGallery({ append: true });
+      } else if (state.view === 'popular') {
+        fetchPosts();
+      }
     }
   }, {
     rootMargin: '600px 0px'
