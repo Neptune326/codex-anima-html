@@ -11,6 +11,8 @@ import {
   matchesSmartCollection,
   mediaIdentity,
   replaceCurrentTag,
+  retryDelay,
+  shouldRetryRequest,
   suggestTags,
   translateTag
 } from './library.js';
@@ -89,6 +91,10 @@ const elements = {
   previewMedia: document.querySelector('#previewMedia'),
   previewDetails: document.querySelector('#previewDetails'),
   previewZoom: document.querySelector('#previewZoom'),
+  previewFilmstrip: document.querySelector('#previewFilmstrip'),
+  previewHelpButton: document.querySelector('#previewHelpButton'),
+  previewFullscreenButton: document.querySelector('#previewFullscreenButton'),
+  shortcutHelp: document.querySelector('#shortcutHelp'),
   zoomOutButton: document.querySelector('#zoomOutButton'),
   zoomResetButton: document.querySelector('#zoomResetButton'),
   zoomInButton: document.querySelector('#zoomInButton'),
@@ -100,6 +106,7 @@ const elements = {
   downloadQueueSummary: document.querySelector('#downloadQueueSummary'),
   downloadQueueList: document.querySelector('#downloadQueueList'),
   clearDownloadQueue: document.querySelector('#clearDownloadQueue'),
+  resumeDownloadQueue: document.querySelector('#resumeDownloadQueue'),
   backToTop: document.querySelector('#backToTop'),
   toast: document.querySelector('#toast')
 };
@@ -116,15 +123,21 @@ let toastTimer;
 let renderLimit = 60;
 let suggestionIndex = -1;
 let currentSuggestions = [];
+let remoteTagCandidates = [];
+let tagSuggestionTimer;
+let tagSuggestionRequest;
 let lazyMediaObserver;
 let previewZoom = 1;
 let downloadWorkerActive = false;
 let downloadSequence = 0;
 const selectedDownloads = new Set();
-const downloadQueue = [];
+let downloadQueue = state.downloadQueue;
 const downloadControllers = new Map();
+const sourceHealth = Object.fromEntries(Object.keys(SOURCES).map(sourceId => [sourceId, 'checking']));
+const lastRequestAt = new Map();
 const RESPONSE_CACHE_PREFIX = 'atlas-gallery-response:';
 const RESPONSE_CACHE_TTL_MS = 5 * 60 * 1000;
+const MIN_SOURCE_REQUEST_INTERVAL_MS = 350;
 
 function icon(name) {
   return `<svg class="icon"><use href="#icon-${name}"></use></svg>`;
@@ -244,7 +257,10 @@ function renderSources() {
       data-source="${sourceId}"
       title="${escapeHtml(source.description)}"
       role="listitem"
-    >${escapeHtml(source.shortName)}</button>
+    >
+      <span class="source-health is-${sourceHealth[sourceId]}" aria-hidden="true"></span>
+      ${escapeHtml(source.shortName)}
+    </button>
   `).join('');
 }
 
@@ -344,7 +360,10 @@ function dynamicTagCandidates() {
 }
 
 function renderTagSuggestions() {
-  currentSuggestions = suggestTags(elements.tagInput.value, dynamicTagCandidates());
+  currentSuggestions = suggestTags(
+    elements.tagInput.value,
+    [...remoteTagCandidates, ...dynamicTagCandidates()]
+  );
   suggestionIndex = Math.min(suggestionIndex, currentSuggestions.length - 1);
   elements.tagSuggestions.hidden = currentSuggestions.length === 0;
   elements.tagSuggestions.innerHTML = currentSuggestions.map((suggestion, index) => `
@@ -359,6 +378,44 @@ function renderTagSuggestions() {
       <small>${escapeHtml(suggestion.translation || '站点标签')}</small>
     </button>
   `).join('');
+}
+
+function currentTagQuery() {
+  return (elements.tagInput.value.split(/\s+/).pop() || '').replace(/^-/, '').trim();
+}
+
+async function fetchRemoteTagSuggestions() {
+  const query = currentTagQuery();
+  const source = currentSource();
+  tagSuggestionRequest?.abort();
+  remoteTagCandidates = [];
+
+  if (query.length < 2 || !source.buildTagUrl || !source.parseTags) {
+    renderTagSuggestions();
+    return;
+  }
+
+  const controller = new AbortController();
+  tagSuggestionRequest = controller;
+
+  try {
+    const payload = await requestWithRetry(source.buildTagUrl(query).href, controller.signal);
+    if (controller !== tagSuggestionRequest || query !== currentTagQuery()) {
+      return;
+    }
+    remoteTagCandidates = source.parseTags(payload);
+    renderTagSuggestions();
+  } catch (error) {
+    if (error.name !== 'AbortError') {
+      renderTagSuggestions();
+    }
+  }
+}
+
+function scheduleTagSuggestions() {
+  clearTimeout(tagSuggestionTimer);
+  renderTagSuggestions();
+  tagSuggestionTimer = setTimeout(fetchRemoteTagSuggestions, 250);
 }
 
 function applyTagSuggestion(tag) {
@@ -620,6 +677,13 @@ async function requestJson(upstreamUrl, signal, force = false) {
     }
   }
 
+  const hostname = new URL(upstreamUrl).hostname;
+  const elapsed = Date.now() - (lastRequestAt.get(hostname) || 0);
+  if (elapsed < MIN_SOURCE_REQUEST_INTERVAL_MS) {
+    await wait(MIN_SOURCE_REQUEST_INTERVAL_MS - elapsed, signal);
+  }
+  lastRequestAt.set(hostname, Date.now());
+
   const response = await fetch(buildRequestUrl(upstreamUrl), {
     signal,
     credentials: 'omit',
@@ -637,7 +701,9 @@ async function requestJson(upstreamUrl, signal, force = false) {
       // Keep the HTTP status as the fallback error.
     }
 
-    throw new Error(detail || `HTTP ${response.status}`);
+    const error = new Error(detail || `HTTP ${response.status}`);
+    error.status = response.status;
+    throw error;
   }
 
   const payload = await response.json();
@@ -645,10 +711,24 @@ async function requestJson(upstreamUrl, signal, force = false) {
   return payload;
 }
 
+function wait(milliseconds, signal) {
+  return new Promise((resolve, reject) => {
+    const abort = () => {
+      clearTimeout(timer);
+      reject(new DOMException('请求已取消', 'AbortError'));
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', abort);
+      resolve();
+    }, milliseconds);
+    signal?.addEventListener('abort', abort, { once: true });
+  });
+}
+
 async function requestWithRetry(upstreamUrl, signal, force = false) {
   let firstError;
 
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       return await requestJson(upstreamUrl, signal, force);
     } catch (error) {
@@ -657,9 +737,10 @@ async function requestWithRetry(upstreamUrl, signal, force = false) {
       }
 
       firstError ||= error;
-      if (attempt === 0) {
-        await new Promise(resolve => setTimeout(resolve, 450));
+      if (attempt >= 2 || !shouldRetryRequest(error.status)) {
+        break;
       }
+      await wait(retryDelay(attempt + 1), signal);
     }
   }
 
@@ -760,6 +841,8 @@ function applySearch() {
 }
 
 function changeSource(sourceId) {
+  tagSuggestionRequest?.abort();
+  remoteTagCandidates = [];
   state.source = sourceId;
   if (!currentSource().capabilities.video && state.mediaType === 'video') {
     state.mediaType = 'image';
@@ -836,19 +919,22 @@ async function downloadPost(post, { quiet = false, signal } = {}) {
 }
 
 function renderDownloadQueue() {
-  const activeItems = downloadQueue.filter(item => !['done', 'cancelled'].includes(item.status));
+  const activeItems = downloadQueue.filter(item => ['pending', 'running'].includes(item.status));
+  const pausedItems = downloadQueue.filter(item => ['paused', 'error'].includes(item.status));
   const completed = downloadQueue.filter(item => item.status === 'done').length;
   elements.downloadQueue.hidden = downloadQueue.length === 0;
-  elements.downloadQueueSummary.textContent = `${activeItems.length} 进行中 · ${completed} 已完成`;
+  elements.downloadQueueSummary.textContent = `${activeItems.length} 进行中 · ${pausedItems.length} 待恢复 · ${completed} 已完成`;
+  elements.resumeDownloadQueue.disabled = pausedItems.length === 0;
   elements.downloadQueueList.innerHTML = downloadQueue.map(item => {
     const statusText = {
       pending: '等待中',
       running: '下载中',
       done: '已完成',
       error: '失败',
+      paused: '已暂停',
       cancelled: '已取消'
     }[item.status];
-    const action = item.status === 'error'
+    const action = ['error', 'paused'].includes(item.status)
       ? `<button class="mini-icon-button" type="button" data-retry-download="${item.id}" title="重试">${icon('retry')}</button>`
       : ['pending', 'running'].includes(item.status)
         ? `<button class="mini-icon-button" type="button" data-cancel-download="${item.id}" title="取消">${icon('close')}</button>`
@@ -865,6 +951,18 @@ function renderDownloadQueue() {
       </article>
     `;
   }).join('');
+  persistDownloadQueue();
+}
+
+function persistDownloadQueue() {
+  state.downloadQueue = downloadQueue.slice(-100).map(item => ({
+    id: item.id,
+    post: item.post,
+    filename: item.filename,
+    status: item.status,
+    error: item.error
+  }));
+  persist();
 }
 
 async function runDownloadItem(item) {
@@ -1014,6 +1112,7 @@ function renderPreview() {
       ></video>
     `
     : `<img src="${escapeHtml(mediaUrl)}" alt="${escapeHtml(post.tags?.join(', ') || `帖子 ${post.id}`)}">`;
+  renderPreviewFilmstrip(rows);
 
   const source = getSource(post.source);
   const favorite = state.favorites[favoriteKey(post)];
@@ -1084,6 +1183,41 @@ function renderPreview() {
     video.addEventListener('timeupdate', () => saveVideoProgress(post, video));
     video.addEventListener('pause', () => saveVideoProgress(post, video, true));
     video.addEventListener('ended', () => saveVideoProgress(post, video, true));
+  }
+}
+
+function renderPreviewFilmstrip(rows) {
+  const start = Math.max(0, selectedIndex - 4);
+  const end = Math.min(rows.length, selectedIndex + 5);
+  elements.previewFilmstrip.innerHTML = rows.slice(start, end).map((post, offset) => {
+    const index = start + offset;
+    return `
+      <button
+        class="filmstrip-item ${index === selectedIndex ? 'is-active' : ''}"
+        type="button"
+        data-preview-index="${index}"
+        title="帖子 #${escapeHtml(post.id)}"
+      >
+        <img src="${escapeHtml(post.preview || post.sample)}" alt="" loading="lazy">
+        ${post.type === 'video' ? icon('video') : ''}
+      </button>
+    `;
+  }).join('');
+  elements.previewFilmstrip.querySelector('.is-active')?.scrollIntoView({
+    block: 'nearest',
+    inline: 'center'
+  });
+}
+
+async function togglePreviewFullscreen() {
+  try {
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+    } else {
+      await elements.previewStage.requestFullscreen();
+    }
+  } catch {
+    showToast('当前浏览器未允许全屏');
   }
 }
 
@@ -1241,6 +1375,34 @@ function updateNetworkStatus() {
     : `${icon('wifi-off')}<span>当前离线</span>`;
 }
 
+async function checkSourceHealth(sourceId) {
+  sourceHealth[sourceId] = 'checking';
+  renderSources();
+
+  try {
+    const response = await fetch(`/api/site-health?source=${encodeURIComponent(sourceId)}`, {
+      credentials: 'same-origin'
+    });
+    sourceHealth[sourceId] = response.ok ? 'online' : 'error';
+  } catch {
+    sourceHealth[sourceId] = 'error';
+  }
+  renderSources();
+}
+
+async function checkAllSourceHealth() {
+  const sourceIds = Object.keys(SOURCES);
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < sourceIds.length) {
+      const sourceId = sourceIds[cursor];
+      cursor += 1;
+      await checkSourceHealth(sourceId);
+    }
+  };
+  await Promise.all([worker(), worker(), worker()]);
+}
+
 function registerEvents() {
   document.addEventListener('click', event => {
     const button = event.target.closest('button');
@@ -1260,6 +1422,9 @@ function registerEvents() {
 
     if (button.dataset.source) {
       changeSource(button.dataset.source);
+      if (sourceHealth[button.dataset.source] === 'error') {
+        checkSourceHealth(button.dataset.source);
+      }
     }
 
     if (button.dataset.mediaType) {
@@ -1334,6 +1499,13 @@ function registerEvents() {
         renderDownloadQueue();
         processDownloadQueue();
       }
+    }
+
+    if (button.dataset.previewIndex !== undefined) {
+      const post = visiblePosts()[selectedIndex];
+      saveVideoProgress(post, elements.previewMedia.querySelector('video'), true);
+      selectedIndex = Number(button.dataset.previewIndex);
+      renderPreview();
     }
 
     if (button.dataset.tagSuggestion) {
@@ -1420,7 +1592,7 @@ function registerEvents() {
   elements.tagInput.addEventListener('input', () => {
     suggestionIndex = -1;
     elements.syntaxHelp.hidden = true;
-    renderTagSuggestions();
+    scheduleTagSuggestions();
   });
   elements.tagInput.addEventListener('keydown', event => {
     if (elements.tagSuggestions.hidden || !currentSuggestions.length) {
@@ -1541,6 +1713,16 @@ function registerEvents() {
     }
     renderDownloadQueue();
   });
+  elements.resumeDownloadQueue.addEventListener('click', () => {
+    downloadQueue.forEach(item => {
+      if (['paused', 'error'].includes(item.status)) {
+        item.status = 'pending';
+        item.error = '';
+      }
+    });
+    renderDownloadQueue();
+    processDownloadQueue();
+  });
   elements.importButton.addEventListener('click', () => elements.importFile.click());
   elements.importFile.addEventListener('change', () => {
     const [file] = elements.importFile.files;
@@ -1553,9 +1735,12 @@ function registerEvents() {
       return;
     }
     state = await resetState();
+    downloadQueue = [];
+    downloadSequence = 0;
     state.anchorDate = formatDate(new Date());
     closeDrawer();
     renderControls();
+    renderDownloadQueue();
     fetchPosts({ reset: true });
     showToast('本地数据已清除');
   });
@@ -1582,6 +1767,10 @@ function registerEvents() {
   elements.closePreview.addEventListener('click', closePreview);
   elements.previousPreview.addEventListener('click', () => movePreview(-1));
   elements.nextPreview.addEventListener('click', () => movePreview(1));
+  elements.previewHelpButton.addEventListener('click', () => {
+    elements.shortcutHelp.hidden = !elements.shortcutHelp.hidden;
+  });
+  elements.previewFullscreenButton.addEventListener('click', togglePreviewFullscreen);
   elements.zoomInButton.addEventListener('click', () => setPreviewZoom(previewZoom + 0.25));
   elements.zoomOutButton.addEventListener('click', () => setPreviewZoom(previewZoom - 0.25));
   elements.zoomResetButton.addEventListener('click', () => setPreviewZoom(1));
@@ -1624,6 +1813,10 @@ function registerEvents() {
       setPreviewZoom(previewZoom - 0.25);
     } else if (event.key === '0') {
       setPreviewZoom(1);
+    } else if (event.key.toLowerCase() === 'x') {
+      togglePreviewFullscreen();
+    } else if (event.key === '?') {
+      elements.shortcutHelp.hidden = !elements.shortcutHelp.hidden;
     }
   });
 
@@ -1647,11 +1840,17 @@ async function initialize() {
   }
 
   await hydrateLibrary(state);
+  downloadQueue = state.downloadQueue;
+  downloadSequence = downloadQueue.reduce((maximum, item) => {
+    return Math.max(maximum, Number(item.id) || 0);
+  }, 0);
   saveState(state);
   registerEvents();
   updateNetworkStatus();
   renderControls();
   renderGallery();
+  renderDownloadQueue();
+  checkAllSourceHealth();
 
   const observer = new IntersectionObserver(entries => {
     if (entries[0].isIntersecting) {

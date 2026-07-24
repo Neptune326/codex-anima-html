@@ -34,7 +34,8 @@ export const DEFAULT_STATE = {
   savedSearches: [],
   smartCollections: [],
   activeSmartCollection: '',
-  videoProgress: {}
+  videoProgress: {},
+  downloadQueue: []
 };
 
 function clone(value) {
@@ -82,8 +83,29 @@ function normalizeState(value = {}) {
     activeSmartCollection: value.activeSmartCollection || '',
     videoProgress: value.videoProgress && typeof value.videoProgress === 'object'
       ? value.videoProgress
-      : {}
+      : {},
+    downloadQueue: normalizeDownloadQueue(value.downloadQueue)
   };
+}
+
+export function normalizeDownloadQueue(queue) {
+  if (!Array.isArray(queue)) {
+    return [];
+  }
+
+  return queue
+    .filter(item => item?.post?.file && item?.id)
+    .slice(-100)
+    .map(item => {
+      const interrupted = ['pending', 'running'].includes(item.status);
+      return {
+        id: String(item.id),
+        post: item.post,
+        filename: String(item.filename || 'media'),
+        status: interrupted ? 'paused' : item.status || 'paused',
+        error: interrupted ? '页面刷新后已暂停' : String(item.error || '')
+      };
+    });
 }
 
 function readJson(key) {

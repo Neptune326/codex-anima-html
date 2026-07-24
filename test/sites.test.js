@@ -21,6 +21,30 @@ test('site adapters build allowlisted API URLs', async () => {
   assert.equal(new URL(SOURCES.e926.buildUrl(query)).hostname, 'e926.net');
 });
 
+test('site adapters build and parse remote tag suggestions', async () => {
+  const { SOURCES } = await import('../public/js/sites.js');
+
+  assert.equal(new URL(SOURCES.yandere.buildTagUrl('blue')).pathname, '/tag.json');
+  assert.equal(
+    SOURCES.gelbooru.buildTagUrl('blue').searchParams.get('name_pattern'),
+    '%blue%'
+  );
+  assert.equal(
+    SOURCES.danbooru.buildTagUrl('blue').searchParams.get('search[name_matches]'),
+    'blue*'
+  );
+  assert.equal(new URL(SOURCES.e621.buildTagUrl('blue')).hostname, 'e621.net');
+  assert.equal(SOURCES.sankaku.buildTagUrl, undefined);
+  assert.deepEqual(
+    SOURCES.danbooru.parseTags([{ name: 'blue_hair' }, { name: 'blue_eyes' }]),
+    ['blue_hair', 'blue_eyes']
+  );
+  assert.deepEqual(
+    SOURCES.gelbooru.parseTags({ tag: [{ name: 'blue_sky' }] }),
+    ['blue_sky']
+  );
+});
+
 test('e621 and e926 adapters flatten tags and normalize media metadata', async () => {
   const { SOURCES } = await import('../public/js/sites.js');
   const payload = {

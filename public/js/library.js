@@ -82,6 +82,14 @@ export function replaceCurrentTag(input, replacement) {
   return `${leading}${tokens.join(' ')} `;
 }
 
+export function shouldRetryRequest(status) {
+  return status === undefined || status === null || status === 429 || status >= 500;
+}
+
+export function retryDelay(retryNumber) {
+  return retryNumber <= 1 ? 500 : 1500;
+}
+
 export function matchesSmartCollection(post, collection) {
   if (!post || !collection) {
     return false;

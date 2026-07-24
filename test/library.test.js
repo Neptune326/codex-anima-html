@@ -83,3 +83,32 @@ test('fallback library is authoritative until it is migrated to IndexedDB', asyn
     databaseLibrary
   );
 });
+
+test('request retry policy only retries transient failures', async () => {
+  const { retryDelay, shouldRetryRequest } = await import('../public/js/library.js');
+
+  assert.equal(shouldRetryRequest(undefined), true);
+  assert.equal(shouldRetryRequest(429), true);
+  assert.equal(shouldRetryRequest(503), true);
+  assert.equal(shouldRetryRequest(400), false);
+  assert.equal(shouldRetryRequest(403), false);
+  assert.equal(retryDelay(1), 500);
+  assert.equal(retryDelay(2), 1500);
+});
+
+test('download queue recovery pauses interrupted work and removes invalid entries', async () => {
+  const { normalizeDownloadQueue } = await import('../public/js/storage.js');
+  const post = { id: '1', source: 'danbooru', file: 'https://cdn.donmai.us/a.jpg' };
+  const queue = normalizeDownloadQueue([
+    { id: 1, post, filename: 'a.jpg', status: 'running' },
+    { id: 2, post, filename: 'b.jpg', status: 'pending' },
+    { id: 3, post, filename: 'c.jpg', status: 'error', error: 'HTTP 502' },
+    { id: 4, post: {}, filename: 'invalid.jpg', status: 'pending' }
+  ]);
+
+  assert.equal(queue.length, 3);
+  assert.equal(queue[0].status, 'paused');
+  assert.equal(queue[1].status, 'paused');
+  assert.equal(queue[2].status, 'error');
+  assert.match(queue[0].error, /页面刷新/);
+});

@@ -12,6 +12,18 @@ const MAX_DOWNLOAD_BYTES = 256 * 1024 * 1024;
 const MAX_PROXY_REQUESTS = 12;
 const REQUEST_TIMEOUT_MS = 25000;
 
+const SITE_HEALTH_TARGETS = Object.freeze({
+  yandere: 'https://yande.re/post.json?limit=1',
+  konachan: 'https://konachan.com/post.json?limit=1',
+  gelbooru: 'https://gelbooru.com/index.php?page=dapi&s=post&q=index&json=1&limit=1',
+  danbooru: 'https://danbooru.donmai.us/posts.json?limit=1',
+  sankaku: 'https://capi-v2.sankakucomplex.com/posts?limit=1',
+  safebooru: 'https://safebooru.org/index.php?page=dapi&s=post&q=index&json=1&limit=1',
+  rule34: 'https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&limit=1',
+  e621: 'https://e621.net/posts.json?limit=1',
+  e926: 'https://e926.net/posts.json?limit=1'
+});
+
 const ALLOWED_HOSTS = new Set([
   'yande.re',
   'konachan.com',
@@ -426,6 +438,15 @@ function createAppServer(options = {}) {
     ?? '';
   const configuredProxy = parseProxy(proxyValue);
   const proxyResolver = createProxyResolver(configuredProxy);
+  const probeSite = options.probeSite || (async target => {
+    const startedAt = Date.now();
+    const upstream = await fetchUpstream(target, proxyResolver, 0, 512 * 1024);
+    return {
+      ok: upstream.status >= 200 && upstream.status < 500,
+      status: upstream.status,
+      latencyMs: Date.now() - startedAt
+    };
+  });
   let activeProxyRequests = 0;
 
   const server = http.createServer(async (request, response) => {
@@ -519,6 +540,33 @@ function createAppServer(options = {}) {
       return;
     }
 
+    if (request.method === 'GET' && requestUrl.pathname === '/api/site-health') {
+      const source = requestUrl.searchParams.get('source') || '';
+      const targetValue = SITE_HEALTH_TARGETS[source];
+
+      if (!targetValue) {
+        sendJson(response, 400, { error: '未知站点来源' });
+        return;
+      }
+
+      try {
+        const result = await probeSite(validateTarget(targetValue), source);
+        sendJson(response, result.ok ? 200 : 502, {
+          source,
+          ok: Boolean(result.ok),
+          status: Number(result.status) || 0,
+          latencyMs: Math.max(0, Number(result.latencyMs) || 0)
+        });
+      } catch (error) {
+        sendJson(response, 502, {
+          source,
+          ok: false,
+          error: error.message
+        });
+      }
+      return;
+    }
+
     if (request.method === 'GET' && requestUrl.pathname === '/favicon.ico') {
       response.writeHead(204).end();
       return;
@@ -566,6 +614,7 @@ if (require.main === module) {
 
 module.exports = {
   ALLOWED_HOSTS,
+  SITE_HEALTH_TARGETS,
   contentDisposition,
   createAppServer,
   parseProxy,

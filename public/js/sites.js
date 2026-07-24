@@ -133,6 +133,44 @@ function parseGelbooruPayload(payload) {
   return Array.isArray(payload?.post) ? payload.post : [];
 }
 
+function parseTagRows(payload) {
+  const rows = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.tag) ? payload.tag : [];
+
+  return rows
+    .map(tag => typeof tag === 'string' ? tag : tag?.name)
+    .filter(Boolean);
+}
+
+function buildMoebooruTagUrl(baseUrl, query) {
+  return addSearchParams(new URL(baseUrl), {
+    limit: 12,
+    order: 'count',
+    name: `${query}*`
+  });
+}
+
+function buildGelbooruTagUrl(baseUrl, query) {
+  return addSearchParams(new URL(baseUrl), {
+    page: 'dapi',
+    s: 'tag',
+    q: 'index',
+    json: 1,
+    limit: 12,
+    orderby: 'count',
+    name_pattern: `%${query}%`
+  });
+}
+
+function buildDanbooruTagUrl(baseUrl, query) {
+  return addSearchParams(new URL(baseUrl), {
+    limit: 12,
+    'search[name_matches]': `${query}*`,
+    'search[order]': 'count'
+  });
+}
+
 function parseMoebooru(sourceId, payload) {
   return (Array.isArray(payload) ? payload : []).map(post => normalizePost(sourceId, {
     id: post.id,
@@ -237,6 +275,10 @@ export const SOURCES = {
     buildUrl(query) {
       return buildMoebooruUrl('https://yande.re/post.json', query, true);
     },
+    buildTagUrl(query) {
+      return buildMoebooruTagUrl('https://yande.re/tag.json', query);
+    },
+    parseTags: parseTagRows,
     parse(payload) {
       return parseMoebooru('yandere', payload);
     }
@@ -250,6 +292,10 @@ export const SOURCES = {
     buildUrl(query) {
       return buildMoebooruUrl('https://konachan.com/post.json', query, false);
     },
+    buildTagUrl(query) {
+      return buildMoebooruTagUrl('https://konachan.com/tag.json', query);
+    },
+    parseTags: parseTagRows,
     parse(payload) {
       return parseMoebooru('konachan', payload);
     }
@@ -263,6 +309,10 @@ export const SOURCES = {
     buildUrl(query) {
       return buildGelbooruUrl('https://gelbooru.com/index.php', query);
     },
+    buildTagUrl(query) {
+      return buildGelbooruTagUrl('https://gelbooru.com/index.php', query);
+    },
+    parseTags: parseTagRows,
     parse(payload) {
       return parseGelbooru('gelbooru', payload);
     }
@@ -285,6 +335,10 @@ export const SOURCES = {
         tags: joinTags(query, ['order:score_desc', mediaTag])
       });
     },
+    buildTagUrl(query) {
+      return buildDanbooruTagUrl('https://danbooru.donmai.us/tags.json', query);
+    },
+    parseTags: parseTagRows,
     parse(payload) {
       return (Array.isArray(payload) ? payload : []).map(post => normalizePost('danbooru', {
         id: post.id,
@@ -347,6 +401,10 @@ export const SOURCES = {
     buildUrl(query) {
       return buildGelbooruUrl('https://safebooru.org/index.php', query, false);
     },
+    buildTagUrl(query) {
+      return buildGelbooruTagUrl('https://safebooru.org/index.php', query);
+    },
+    parseTags: parseTagRows,
     parse(payload) {
       return parseGelbooru('safebooru', payload, true);
     }
@@ -360,6 +418,10 @@ export const SOURCES = {
     buildUrl(query) {
       return buildGelbooruUrl('https://api.rule34.xxx/index.php', query);
     },
+    buildTagUrl(query) {
+      return buildGelbooruTagUrl('https://api.rule34.xxx/index.php', query);
+    },
+    parseTags: parseTagRows,
     parse(payload) {
       return parseGelbooru('rule34', payload);
     }
@@ -381,6 +443,10 @@ export const SOURCES = {
         ])
       });
     },
+    buildTagUrl(query) {
+      return buildDanbooruTagUrl('https://e621.net/tags.json', query);
+    },
+    parseTags: parseTagRows,
     parse(payload) {
       return parseE6('e621', payload);
     }
@@ -402,6 +468,10 @@ export const SOURCES = {
         ])
       });
     },
+    buildTagUrl(query) {
+      return buildDanbooruTagUrl('https://e926.net/tags.json', query);
+    },
+    parseTags: parseTagRows,
     parse(payload) {
       return parseE6('e926', payload);
     }

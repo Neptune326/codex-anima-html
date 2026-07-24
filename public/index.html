@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="light dark">
   <meta name="description" content="多站点图片与视频图库浏览器">
   <title>Atlas Gallery</title>
-  <link rel="stylesheet" href="/css/styles.css?v=2.2.1">
+  <link rel="stylesheet" href="/css/styles.css?v=2.3.0-final">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true">
@@ -109,6 +109,9 @@
     </symbol>
     <symbol id="icon-retry" viewBox="0 0 24 24">
       <path d="M20 6v5h-5M19 11a7 7 0 1 0-1 6" />
+    </symbol>
+    <symbol id="icon-fullscreen" viewBox="0 0 24 24">
+      <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
     </symbol>
   </svg>
 
@@ -464,7 +467,23 @@
           <svg class="icon"><use href="#icon-zoom-in"></use></svg>
         </button>
       </div>
+      <div class="preview-tools">
+        <button class="icon-button" id="previewHelpButton" type="button" title="快捷键帮助">
+          <svg class="icon"><use href="#icon-help"></use></svg>
+        </button>
+        <button class="icon-button" id="previewFullscreenButton" type="button" title="切换全屏">
+          <svg class="icon"><use href="#icon-fullscreen"></use></svg>
+        </button>
+      </div>
+      <div class="shortcut-help" id="shortcutHelp" hidden>
+        <strong>预览快捷键</strong>
+        <span><kbd>←</kbd><kbd>→</kbd> 切换媒体</span>
+        <span><kbd>F</kbd> 收藏 · <kbd>D</kbd> 下载</span>
+        <span><kbd>+</kbd><kbd>-</kbd><kbd>0</kbd> 图片缩放</span>
+        <span><kbd>X</kbd> 全屏 · <kbd>?</kbd> 帮助</span>
+      </div>
       <div class="preview-media" id="previewMedia"></div>
+      <div class="preview-filmstrip" id="previewFilmstrip" aria-label="预览缩略图导航"></div>
       <button class="preview-nav next" id="nextPreview" type="button" title="下一项">
         <svg class="icon"><use href="#icon-chevron-right"></use></svg>
       </button>
@@ -478,15 +497,20 @@
         <strong>下载队列</strong>
         <small id="downloadQueueSummary">0 项</small>
       </div>
-      <button class="icon-button" id="clearDownloadQueue" type="button" title="清除已完成">
-        <svg class="icon"><use href="#icon-delete"></use></svg>
-      </button>
+      <div class="download-queue-actions">
+        <button class="icon-button" id="resumeDownloadQueue" type="button" title="继续全部">
+          <svg class="icon"><use href="#icon-retry"></use></svg>
+        </button>
+        <button class="icon-button" id="clearDownloadQueue" type="button" title="清除已完成">
+          <svg class="icon"><use href="#icon-delete"></use></svg>
+        </button>
+      </div>
     </header>
     <div class="download-queue-list" id="downloadQueueList"></div>
   </aside>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script type="module" src="/js/app.js?v=2.2.0"></script>
+  <script type="module" src="/js/app.js?v=2.3.0"></script>
 </body>
 </html>

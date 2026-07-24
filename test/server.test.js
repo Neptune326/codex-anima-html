@@ -109,7 +109,7 @@ test('server serves health and static resources without hanging sockets', async 
     assert.equal(health.status, 200);
     assert.deepEqual(JSON.parse(health.body), {
       ok: true,
-      version: '2.2.0',
+      version: '2.3.0',
       proxyMode: app.proxyMode
     });
 
@@ -129,6 +129,41 @@ test('server serves health and static resources without hanging sockets', async 
     const missing = await request(server, '/missing-resource');
     assert.equal(missing.status, 404);
     assert.match(missing.body, /未找到资源/);
+  } finally {
+    await closeServer(server);
+  }
+});
+
+test('site health only probes mapped sources and never accepts arbitrary URLs', async () => {
+  const probes = [];
+  const app = createAppServer({
+    publicDirectory: path.join(__dirname, '..', 'public'),
+    upstreamProxy: '',
+    probeSite: async (target, source) => {
+      probes.push({ target: target.href, source });
+      return { ok: true, status: 200, latencyMs: 18 };
+    }
+  });
+  const server = await listen(app);
+
+  try {
+    const healthy = await request(server, '/api/site-health?source=danbooru');
+    assert.equal(healthy.status, 200);
+    assert.deepEqual(JSON.parse(healthy.body), {
+      source: 'danbooru',
+      ok: true,
+      status: 200,
+      latencyMs: 18
+    });
+    assert.equal(probes[0].target, 'https://danbooru.donmai.us/posts.json?limit=1');
+
+    const arbitrary = await request(
+      server,
+      '/api/site-health?source=https%3A%2F%2Fexample.com%2F'
+    );
+    assert.equal(arbitrary.status, 400);
+    assert.match(arbitrary.body, /未知站点来源/);
+    assert.equal(probes.length, 1);
   } finally {
     await closeServer(server);
   }
