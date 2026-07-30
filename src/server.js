@@ -15,21 +15,33 @@ const REQUEST_TIMEOUT_MS = 25000;
 const SITE_HEALTH_TARGETS = Object.freeze({
   yandere: 'https://yande.re/post.json?limit=1',
   konachan: 'https://konachan.com/post.json?limit=1',
+  konachanNet: 'https://konachan.net/post.json?limit=1',
+  lolibooru: 'https://lolibooru.moe/post.json?limit=1',
   gelbooru: 'https://gelbooru.com/index.php?page=dapi&s=post&q=index&json=1&limit=1',
+  xbooru: 'https://xbooru.com/index.php?page=dapi&s=post&q=index&json=1&limit=1',
   danbooru: 'https://danbooru.donmai.us/posts.json?limit=1',
   sankaku: 'https://capi-v2.sankakucomplex.com/posts?limit=1',
   safebooru: 'https://safebooru.org/index.php?page=dapi&s=post&q=index&json=1&limit=1',
   rule34: 'https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&limit=1',
   e621: 'https://e621.net/posts.json?limit=1',
-  e926: 'https://e926.net/posts.json?limit=1'
+  e926: 'https://e926.net/posts.json?limit=1',
+  aibooru: 'https://aibooru.online/posts.json?limit=1',
+  sakugabooru: 'https://sakugabooru.com/post.json?limit=1',
+  derpibooru: 'https://derpibooru.org/api/v1/json/search/images?q=safe&per_page=1',
+  wallhaven: 'https://wallhaven.cc/api/v1/search?purity=100&page=1'
 });
 
 const ALLOWED_HOSTS = new Set([
   'yande.re',
   'konachan.com',
   'www.konachan.com',
+  'konachan.net',
+  'www.konachan.net',
+  'lolibooru.moe',
   'gelbooru.com',
   'www.gelbooru.com',
+  'xbooru.com',
+  'www.xbooru.com',
   'danbooru.donmai.us',
   'capi-v2.sankakucomplex.com',
   'safebooru.org',
@@ -37,19 +49,32 @@ const ALLOWED_HOSTS = new Set([
   'api.rule34.xxx',
   'rule34.xxx',
   'e621.net',
-  'e926.net'
+  'e926.net',
+  'aibooru.online',
+  'sakugabooru.com',
+  'derpibooru.org',
+  'wallhaven.cc'
 ]);
 
 const MEDIA_HOST_SUFFIXES = [
   'yande.re',
   'konachan.com',
+  'konachan.net',
+  'lolibooru.moe',
   'gelbooru.com',
+  'xbooru.com',
   'donmai.us',
   'sankakucomplex.com',
   'safebooru.org',
   'rule34.xxx',
   'e621.net',
-  'e926.net'
+  'e926.net',
+  'aibooru.online',
+  'aibooru.download',
+  'sakugabooru.com',
+  'derpibooru.org',
+  'derpicdn.net',
+  'wallhaven.cc'
 ];
 
 const MIME_TYPES = {

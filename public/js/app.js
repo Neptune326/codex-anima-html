@@ -10,9 +10,12 @@ import {
   matchesDimension,
   matchesSmartCollection,
   mediaIdentity,
+  parsePixivArtworkId,
   replaceCurrentTag,
   retryDelay,
   shouldRetryRequest,
+  compatibleSourceId,
+  sourceSupportsMedia,
   suggestTags,
   translateTag
 } from './library.js';
@@ -28,6 +31,12 @@ import {
 
 const elements = {
   sourceList: document.querySelector('#sourceList'),
+  sourceCount: document.querySelector('#sourceCount'),
+  pixivButton: document.querySelector('#pixivButton'),
+  pixivDialog: document.querySelector('#pixivDialog'),
+  pixivForm: document.querySelector('#pixivForm'),
+  pixivInput: document.querySelector('#pixivInput'),
+  closePixiv: document.querySelector('#closePixiv'),
   controlSurface: document.querySelector('#controlSurface'),
   mediaTypeControl: document.querySelector('#mediaTypeControl'),
   tagInput: document.querySelector('#tagInput'),
@@ -198,6 +207,13 @@ function currentSource() {
   return getSource(state.source);
 }
 
+function ensureCompatibleSource() {
+  const nextSourceId = compatibleSourceId(SOURCES, state.source, state.mediaType);
+  const changed = nextSourceId !== state.source;
+  state.source = nextSourceId;
+  return changed;
+}
+
 function visiblePosts() {
   let rows;
 
@@ -250,7 +266,13 @@ function hideMessage() {
 }
 
 function renderSources() {
-  elements.sourceList.innerHTML = Object.entries(SOURCES).map(([sourceId, source]) => `
+  const visibleSources = Object.entries(SOURCES).filter(([, source]) => {
+    return sourceSupportsMedia(source, state.mediaType);
+  });
+
+  const mediaName = state.mediaType === 'video' ? '视频' : '图片';
+  elements.sourceCount.textContent = `${visibleSources.length} 个${mediaName}站点`;
+  elements.sourceList.innerHTML = visibleSources.map(([sourceId, source]) => `
     <button
       class="source-chip ${sourceId === state.source ? 'is-selected' : ''}"
       type="button"
@@ -259,7 +281,10 @@ function renderSources() {
       role="listitem"
     >
       <span class="source-health is-${sourceHealth[sourceId]}" aria-hidden="true"></span>
-      ${escapeHtml(source.shortName)}
+      <span>${escapeHtml(source.shortName)}</span>
+      <span class="source-capability" title="支持${mediaName}">
+        ${icon(state.mediaType)}
+      </span>
     </button>
   `).join('');
 }
@@ -461,6 +486,7 @@ function renderControls() {
   const supportsDate = source.capabilities.date;
   const supportsVideo = source.capabilities.video;
   elements.controlSurface.hidden = state.view !== 'popular';
+  elements.pixivButton.hidden = state.mediaType !== 'image';
   elements.dateFilter.classList.toggle('is-disabled', !supportsDate);
   elements.dateFilter.querySelectorAll('button, input').forEach(control => {
     control.disabled = !supportsDate;
@@ -774,6 +800,8 @@ async function fetchPosts({ reset = false, force = false } = {}) {
     currentPage = 1;
     hasMore = true;
     hideMessage();
+    renderHeader();
+    elements.resultCount.textContent = '加载中';
     renderSkeletons();
   }
 
@@ -841,15 +869,52 @@ function applySearch() {
 }
 
 function changeSource(sourceId) {
+  if (!sourceSupportsMedia(SOURCES[sourceId], state.mediaType)) {
+    return;
+  }
+
   tagSuggestionRequest?.abort();
   remoteTagCandidates = [];
   state.source = sourceId;
-  if (!currentSource().capabilities.video && state.mediaType === 'video') {
-    state.mediaType = 'image';
-    showToast('该站点仅提供图片，已切换到图片分类');
-  }
   renderControls();
   fetchPosts({ reset: true });
+}
+
+function changeMediaType(mediaType) {
+  if (mediaType === state.mediaType) {
+    return;
+  }
+
+  const previousSource = state.source;
+  state.mediaType = mediaType;
+  ensureCompatibleSource();
+  tagSuggestionRequest?.abort();
+  remoteTagCandidates = [];
+
+  if (previousSource !== state.source) {
+    showToast(`已切换到支持${mediaType === 'video' ? '视频' : '图片'}的 ${currentSource().name}`);
+  }
+
+  renderControls();
+  fetchPosts({ reset: true });
+}
+
+function openPixivArtwork(value) {
+  const artworkId = parsePixivArtworkId(value);
+
+  if (!artworkId) {
+    showToast('请输入有效的 Pixiv 作品 ID 或作品链接');
+    elements.pixivInput.focus();
+    return;
+  }
+
+  window.open(
+    `https://www.pixiv.net/artworks/${artworkId}`,
+    '_blank',
+    'noopener,noreferrer'
+  );
+  elements.pixivDialog.close();
+  elements.pixivForm.reset();
 }
 
 async function toggleFavorite(post) {
@@ -1337,6 +1402,7 @@ function applySavedSearch(savedSearch) {
     ratings: Array.isArray(savedSearch.ratings) ? savedSearch.ratings : state.ratings,
     tags: savedSearch.tags || ''
   };
+  ensureCompatibleSource();
   elements.savedSearchDialog.close();
   renderControls();
   fetchPosts({ reset: true });
@@ -1428,13 +1494,7 @@ function registerEvents() {
     }
 
     if (button.dataset.mediaType) {
-      if (button.dataset.mediaType === 'video' && !currentSource().capabilities.video) {
-        showToast('当前站点不提供视频分类');
-        return;
-      }
-      state.mediaType = button.dataset.mediaType;
-      renderControls();
-      fetchPosts({ reset: true });
+      changeMediaType(button.dataset.mediaType);
     }
 
     if (button.dataset.rating) {
@@ -1750,6 +1810,15 @@ function registerEvents() {
     renderSmartCollections();
     elements.savedSearchDialog.showModal();
   });
+  elements.pixivButton.addEventListener('click', () => {
+    elements.pixivDialog.showModal();
+    requestAnimationFrame(() => elements.pixivInput.focus());
+  });
+  elements.closePixiv.addEventListener('click', () => elements.pixivDialog.close());
+  elements.pixivForm.addEventListener('submit', event => {
+    event.preventDefault();
+    openPixivArtwork(elements.pixivInput.value);
+  });
   elements.closeSavedSearch.addEventListener('click', () => elements.savedSearchDialog.close());
   elements.saveSearchForm.addEventListener('submit', event => {
     event.preventDefault();
@@ -1835,9 +1904,7 @@ async function initialize() {
     state.anchorDate = formatDate(new Date());
   }
 
-  if (!SOURCES[state.source]) {
-    state.source = 'konachan';
-  }
+  ensureCompatibleSource();
 
   await hydrateLibrary(state);
   downloadQueue = state.downloadQueue;

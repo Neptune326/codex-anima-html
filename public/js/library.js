@@ -90,6 +90,45 @@ export function retryDelay(retryNumber) {
   return retryNumber <= 1 ? 500 : 1500;
 }
 
+export function parsePixivArtworkId(value) {
+  const input = String(value || '').trim();
+
+  if (/^\d{1,20}$/.test(input)) {
+    return input;
+  }
+
+  let url;
+  try {
+    url = new URL(input);
+  } catch {
+    return '';
+  }
+
+  if (!['pixiv.net', 'www.pixiv.net'].includes(url.hostname.toLowerCase())) {
+    return '';
+  }
+
+  const match = url.pathname.match(/^\/(?:en\/)?artworks\/(\d{1,20})\/?$/);
+  return match?.[1] || '';
+}
+
+export function sourceSupportsMedia(source, mediaType) {
+  return Boolean(source?.capabilities?.[mediaType]);
+}
+
+export function sourceIdsForMedia(sources, mediaType) {
+  return Object.entries(sources || {})
+    .filter(([, source]) => sourceSupportsMedia(source, mediaType))
+    .map(([sourceId]) => sourceId);
+}
+
+export function compatibleSourceId(sources, sourceId, mediaType) {
+  const availableSourceIds = sourceIdsForMedia(sources, mediaType);
+  return availableSourceIds.includes(sourceId)
+    ? sourceId
+    : availableSourceIds[0] || '';
+}
+
 export function matchesSmartCollection(post, collection) {
   if (!post || !collection) {
     return false;

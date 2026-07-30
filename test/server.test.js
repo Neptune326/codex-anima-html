@@ -109,7 +109,7 @@ test('server serves health and static resources without hanging sockets', async 
     assert.equal(health.status, 200);
     assert.deepEqual(JSON.parse(health.body), {
       ok: true,
-      version: '2.3.0',
+      version: '2.5.2',
       proxyMode: app.proxyMode
     });
 
@@ -132,6 +132,49 @@ test('server serves health and static resources without hanging sockets', async 
   } finally {
     await closeServer(server);
   }
+});
+
+test('new source APIs and media CDN hosts are allowlisted explicitly', () => {
+  assert.equal(
+    validateTarget('https://konachan.net/post.json').hostname,
+    'konachan.net'
+  );
+  assert.equal(
+    validateTarget('https://lolibooru.moe/post.json').hostname,
+    'lolibooru.moe'
+  );
+  assert.equal(
+    validateTarget('https://xbooru.com/index.php?page=dapi').hostname,
+    'xbooru.com'
+  );
+  assert.equal(
+    validateTarget('https://aibooru.online/posts.json').hostname,
+    'aibooru.online'
+  );
+  assert.equal(
+    validateTarget('https://derpibooru.org/api/v1/json/search/images').hostname,
+    'derpibooru.org'
+  );
+  assert.equal(
+    validateTarget('https://wallhaven.cc/api/v1/search').hostname,
+    'wallhaven.cc'
+  );
+  assert.equal(
+    validateDownloadTarget('https://cdn.aibooru.download/file/sample.webp').hostname,
+    'cdn.aibooru.download'
+  );
+  assert.equal(
+    validateDownloadTarget('https://derpicdn.net/img/view/sample.webm').hostname,
+    'derpicdn.net'
+  );
+  assert.equal(
+    validateDownloadTarget('https://w.wallhaven.cc/full/ab/sample.jpg').hostname,
+    'w.wallhaven.cc'
+  );
+  assert.equal(
+    validateDownloadTarget('https://img.xbooru.com/images/sample.webm').hostname,
+    'img.xbooru.com'
+  );
 });
 
 test('site health only probes mapped sources and never accepts arbitrary URLs', async () => {
@@ -157,13 +200,18 @@ test('site health only probes mapped sources and never accepts arbitrary URLs', 
     });
     assert.equal(probes[0].target, 'https://danbooru.donmai.us/posts.json?limit=1');
 
+    const newSource = await request(server, '/api/site-health?source=sakugabooru');
+    assert.equal(newSource.status, 200);
+    assert.equal(probes[1].source, 'sakugabooru');
+    assert.equal(probes[1].target, 'https://sakugabooru.com/post.json?limit=1');
+
     const arbitrary = await request(
       server,
       '/api/site-health?source=https%3A%2F%2Fexample.com%2F'
     );
     assert.equal(arbitrary.status, 400);
     assert.match(arbitrary.body, /未知站点来源/);
-    assert.equal(probes.length, 1);
+    assert.equal(probes.length, 2);
   } finally {
     await closeServer(server);
   }

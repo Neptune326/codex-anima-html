@@ -330,6 +330,7 @@ a {
   background: var(--surface);
 }
 
+.media-mode-row,
 .source-row,
 .filter-row,
 .advanced-row,
@@ -339,9 +340,57 @@ a {
   align-items: center;
 }
 
-.source-row {
+.media-mode-row {
   min-width: 0;
-  gap: 16px;
+  justify-content: space-between;
+  gap: 18px;
+  padding-bottom: 2px;
+}
+
+.media-mode-heading {
+  display: grid;
+  gap: 3px;
+}
+
+.media-mode-hint {
+  color: var(--on-surface-variant);
+  font-size: 12px;
+}
+
+.media-type-control {
+  flex: 0 0 auto;
+}
+
+.source-row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.source-heading {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 2px;
+}
+
+.source-count {
+  color: var(--on-surface-variant);
+  font-size: 11px;
+}
+
+.pixiv-launch-button {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--surface-container-high);
+  color: var(--on-surface);
+  white-space: nowrap;
 }
 
 .control-label,
@@ -358,7 +407,11 @@ a {
   gap: 8px;
   overflow-x: auto;
   padding: 2px 2px 5px;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+}
+
+.source-scroller::-webkit-scrollbar {
+  display: none;
 }
 
 .source-chip,
@@ -390,6 +443,26 @@ a {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+.source-capability {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--surface-container-high);
+  color: var(--on-surface-variant);
+}
+
+.source-chip.is-selected .source-capability {
+  background: color-mix(in srgb, var(--on-primary-container) 10%, transparent);
+  color: var(--on-primary-container);
+}
+
+.source-capability .icon {
+  width: 14px;
+  height: 14px;
 }
 
 .source-health {
@@ -1344,6 +1417,26 @@ dialog::backdrop {
   box-shadow: var(--shadow);
 }
 
+.pixiv-dialog {
+  width: min(520px, calc(100% - 32px));
+  padding: 24px;
+  border: 0;
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: var(--shadow-high);
+}
+
+.pixiv-form {
+  display: grid;
+  gap: 16px;
+  margin-top: 22px;
+}
+
+.pixiv-form .filled-button {
+  width: fit-content;
+  justify-self: end;
+}
+
 .save-search-form {
   display: flex;
   align-items: flex-end;
@@ -1877,6 +1970,18 @@ dialog::backdrop {
     margin-left: 0;
   }
 
+  .source-chip,
+  .filter-chip,
+  .pixiv-launch-button {
+    min-height: 40px;
+  }
+
+  .date-stepper .mini-icon-button,
+  #anchorDate {
+    min-width: 40px;
+    height: 40px;
+  }
+
   .preview-dialog[open] {
     grid-template-columns: 1fr;
   }
@@ -1921,7 +2026,14 @@ dialog::backdrop {
 
   .top-app-bar {
     min-height: 64px;
-    padding: 7px 12px;
+    gap: 4px;
+    padding: 7px 8px;
+  }
+
+  .brand {
+    min-width: 40px;
+    flex: 0 0 40px;
+    overflow: hidden;
   }
 
   .brand-copy {
@@ -1931,16 +2043,20 @@ dialog::backdrop {
   .brand-mark {
     width: 40px;
     height: 40px;
+    flex: 0 0 40px;
   }
 
   .view-tabs {
+    min-width: 0;
     flex: 1;
+    gap: 0;
     justify-content: center;
   }
 
   .view-tab {
-    min-width: 76px;
-    padding: 0 8px;
+    min-width: 0;
+    flex: 1 1 0;
+    padding: 0 4px;
   }
 
   .view-tab::after {
@@ -1953,6 +2069,11 @@ dialog::backdrop {
     display: none;
   }
 
+  .top-actions {
+    flex: 0 0 42px;
+    gap: 0;
+  }
+
   .control-surface {
     gap: 12px;
     padding: 14px 12px;
@@ -1960,11 +2081,30 @@ dialog::backdrop {
 
   .source-row {
     display: grid;
+    grid-template-columns: 1fr;
     gap: 8px;
+  }
+
+  .source-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+
+  .pixiv-launch-button {
+    width: max-content;
+    min-height: 40px;
   }
 
   .source-scroller {
     margin-right: -12px;
+    overscroll-behavior-x: contain;
+    scroll-padding-inline: 12px;
+  }
+
+  .source-chip,
+  .filter-chip {
+    min-height: 40px;
   }
 
   .filter-row {
@@ -1981,9 +2121,22 @@ dialog::backdrop {
     min-height: 40px;
   }
 
+  .media-mode-row {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .media-mode-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
   #mediaTypeControl {
+    width: 100%;
     min-width: 0;
-    flex: 1 1 auto;
   }
 
   .segment {
@@ -1994,7 +2147,12 @@ dialog::backdrop {
 
   .search-field {
     min-width: 0;
-    height: 44px;
+    height: 48px;
+  }
+
+  .search-help {
+    width: 40px;
+    height: 40px;
   }
 
   .search-submit {
@@ -2020,13 +2178,19 @@ dialog::backdrop {
     width: fit-content;
   }
 
+  .date-stepper .mini-icon-button,
+  #anchorDate {
+    min-width: 40px;
+    height: 40px;
+  }
+
   .recent-searches {
     display: grid;
     gap: 8px;
   }
 
   .main-content {
-    padding: 20px 12px 64px;
+    padding: 20px 12px calc(64px + env(safe-area-inset-bottom));
   }
 
   .section-header {
@@ -2049,6 +2213,14 @@ dialog::backdrop {
 
   .gallery-grid {
     gap: 8px;
+  }
+
+  .layout-toggle .icon-button,
+  .favorite-button,
+  .more-button,
+  .download-button {
+    width: 42px;
+    height: 42px;
   }
 
   .media-card {
@@ -2080,12 +2252,26 @@ dialog::backdrop {
   }
 
   .drawer-panel {
-    padding: 18px 18px 30px;
+    padding: 18px max(18px, env(safe-area-inset-right)) calc(30px + env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
   }
 
-  .saved-search-dialog {
+  .saved-search-dialog,
+  .pixiv-dialog {
+    width: calc(100% - 16px);
+    max-height: calc(100dvh - 16px);
     padding: 20px 16px;
     border-radius: 20px;
+  }
+
+  .pixiv-form .filled-button {
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  .color-swatch {
+    width: 40px;
+    height: 40px;
   }
 
   .save-search-form {
@@ -2116,7 +2302,8 @@ dialog::backdrop {
   }
 
   .preview-dialog[open] {
-    grid-template-rows: minmax(0, 58vh) minmax(0, 42vh);
+    height: 100dvh;
+    grid-template-rows: minmax(0, 58dvh) minmax(0, 42dvh);
   }
 
   .preview-dialog.hide-details[open] {
@@ -2129,7 +2316,7 @@ dialog::backdrop {
   }
 
   .preview-stage:fullscreen {
-    height: 100vh;
+    height: 100dvh;
   }
 
   .preview-details {
@@ -2171,4 +2358,11 @@ dialog::backdrop {
 
   .preview-nav.previous { left: 10px; }
   .preview-nav.next { right: 10px; }
+
+  button,
+  input,
+  select,
+  a {
+    touch-action: manipulation;
+  }
 }

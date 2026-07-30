@@ -1,0 +1,21 @@
+[Unit]
+Description=Atlas Gallery API service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=atlas-gallery
+Group=atlas-gallery
+WorkingDirectory=/opt/codex-anima-html
+EnvironmentFile=-/etc/atlas-gallery/atlas-gallery.env
+ExecStart=/usr/bin/node /opt/codex-anima-html/src/server.js
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="light dark">
   <meta name="description" content="多站点图片与视频图库浏览器">
   <title>Atlas Gallery</title>
-  <link rel="stylesheet" href="/css/styles.css?v=2.3.0-final">
+  <link rel="stylesheet" href="/css/styles.css?v=2.5.2">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true">
@@ -113,6 +113,9 @@
     <symbol id="icon-fullscreen" viewBox="0 0 24 24">
       <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
     </symbol>
+    <symbol id="icon-launch" viewBox="0 0 24 24">
+      <path d="M14 4h6v6M20 4l-9 9M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6" />
+    </symbol>
   </svg>
 
   <div class="app-shell">
@@ -155,13 +158,12 @@
     </header>
 
     <section class="control-surface" id="controlSurface">
-      <div class="source-row">
-        <span class="control-label">站点来源</span>
-        <div class="source-scroller" id="sourceList" role="list"></div>
-      </div>
-
-      <div class="filter-row">
-        <div class="segmented-control" id="mediaTypeControl" aria-label="媒体类型">
+      <div class="media-mode-row">
+        <div class="media-mode-heading">
+          <span class="control-label">内容类型</span>
+          <span class="media-mode-hint" id="mediaModeHint">先选择图片或视频，再选择站点</span>
+        </div>
+        <div class="segmented-control media-type-control" id="mediaTypeControl" aria-label="媒体类型">
           <button class="segment is-active" type="button" data-media-type="image">
             <svg class="icon"><use href="#icon-image"></use></svg>
             图片
@@ -171,7 +173,21 @@
             视频
           </button>
         </div>
+      </div>
 
+      <div class="source-row">
+        <div class="source-heading">
+          <span class="control-label">站点来源</span>
+          <span class="source-count" id="sourceCount">0 个站点</span>
+        </div>
+        <div class="source-scroller" id="sourceList" role="list"></div>
+        <button class="pixiv-launch-button" id="pixivButton" type="button" title="打开 Pixiv 作品">
+          <svg class="icon"><use href="#icon-launch"></use></svg>
+          Pixiv 直达
+        </button>
+      </div>
+
+      <div class="filter-row">
         <div class="search-wrap">
           <form class="search-field" id="searchForm" role="search">
             <svg class="icon search-icon"><use href="#icon-search"></use></svg>
@@ -179,7 +195,7 @@
               id="tagInput"
               type="search"
               autocomplete="off"
-              placeholder="搜索标签，使用 -tag 排除"
+              placeholder="搜索标签，-tag 排除"
               aria-label="搜索标签"
               aria-autocomplete="list"
               aria-controls="tagSuggestions"
@@ -450,6 +466,35 @@
     </section>
   </dialog>
 
+  <dialog class="pixiv-dialog" id="pixivDialog">
+    <header class="dialog-header">
+      <div>
+        <h2>Pixiv 作品直达</h2>
+        <p>输入作品 ID 或作品页链接</p>
+      </div>
+      <button class="icon-button" id="closePixiv" type="button" title="关闭">
+        <svg class="icon"><use href="#icon-close"></use></svg>
+      </button>
+    </header>
+    <form class="pixiv-form" id="pixivForm">
+      <label class="text-field">
+        <span>作品 ID 或链接</span>
+        <input
+          id="pixivInput"
+          type="text"
+          inputmode="url"
+          autocomplete="off"
+          placeholder="12345678 或 https://www.pixiv.net/artworks/12345678"
+          required
+        >
+      </label>
+      <button class="filled-button" type="submit">
+        <svg class="icon"><use href="#icon-launch"></use></svg>
+        打开作品
+      </button>
+    </form>
+  </dialog>
+
   <dialog class="preview-dialog" id="previewDialog">
     <section class="preview-stage" id="previewStage">
       <button class="preview-close" id="closePreview" type="button" title="关闭预览">
@@ -511,6 +556,6 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script type="module" src="/js/app.js?v=2.3.0"></script>
+  <script type="module" src="/js/app.js?v=2.5.2"></script>
 </body>
 </html>

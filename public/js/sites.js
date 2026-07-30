@@ -265,13 +265,109 @@ function parseE6(sourceId, payload) {
   }));
 }
 
+function buildDanbooruUrl(baseUrl, query) {
+  const url = new URL(baseUrl);
+  const mediaTag = query.mediaType === 'video'
+    ? 'filetype:mp4,webm'
+    : 'filetype:jpg,jpeg,png,gif';
+
+  return addSearchParams(url, {
+    limit: PAGE_SIZE,
+    page: query.page,
+    tags: joinTags(query, ['order:score_desc', mediaTag])
+  });
+}
+
+function parseDanbooru(sourceId, payload) {
+  return (Array.isArray(payload) ? payload : []).map(post => normalizePost(sourceId, {
+    id: post.id,
+    score: post.score,
+    rating: post.rating,
+    createdAt: post.created_at,
+    width: post.image_width,
+    height: post.image_height,
+    tags: post.tag_string,
+    preview: post.preview_file_url,
+    sample: post.large_file_url || post.file_url,
+    file: post.file_url,
+    postUrl: `${SOURCES[sourceId].home}posts/${post.id}`,
+    extension: post.file_ext
+  }));
+}
+
+function buildDerpibooruUrl(query) {
+  const mediaFilter = query.mediaType === 'video' ? 'format:webm' : '-format:webm';
+  const search = joinTags(query, [mediaFilter]).replace(/\s+/g, ',');
+
+  return addSearchParams(new URL('https://derpibooru.org/api/v1/json/search/images'), {
+    q: search,
+    page: query.page,
+    per_page: PAGE_SIZE,
+    sf: 'score',
+    sd: 'desc'
+  });
+}
+
+function parseDerpibooru(payload) {
+  const images = Array.isArray(payload?.images) ? payload.images : [];
+
+  return images.map(post => normalizePost('derpibooru', {
+    id: post.id,
+    score: post.score,
+    rating: Array.isArray(post.tags) && post.tags.includes('explicit')
+      ? 'explicit'
+      : Array.isArray(post.tags) && post.tags.some(tag => ['suggestive', 'questionable'].includes(tag))
+        ? 'questionable'
+        : 'safe',
+    createdAt: post.created_at,
+    width: post.width,
+    height: post.height,
+    tags: post.tags,
+    preview: post.representations?.thumb || post.representations?.small,
+    sample: post.representations?.large || post.representations?.medium,
+    file: post.representations?.full || post.view_url,
+    postUrl: `https://derpibooru.org/images/${post.id}`,
+    extension: post.format
+  }));
+}
+
+function buildWallhavenUrl(query) {
+  return addSearchParams(new URL('https://wallhaven.cc/api/v1/search'), {
+    q: joinTags(query),
+    page: query.page,
+    sorting: 'toplist',
+    order: 'desc',
+    purity: '100'
+  });
+}
+
+function parseWallhaven(payload) {
+  const images = Array.isArray(payload?.data) ? payload.data : [];
+
+  return images.map(post => normalizePost('wallhaven', {
+    id: post.id,
+    score: post.favorites,
+    rating: 'safe',
+    createdAt: post.created_at,
+    width: post.dimension_x,
+    height: post.dimension_y,
+    tags: post.tags,
+    preview: post.thumbs?.small,
+    sample: post.thumbs?.large || post.thumbs?.original,
+    file: post.path,
+    postUrl: post.url || post.short_url,
+    extension: String(post.file_type || '').split('/').pop(),
+    forceSafe: true
+  }));
+}
+
 export const SOURCES = {
   yandere: {
     name: 'yande.re',
     shortName: 'Yande',
     home: 'https://yande.re/',
     description: '插画与动漫图片站',
-    capabilities: { date: true, video: true },
+    capabilities: { image: true, date: true, video: false },
     buildUrl(query) {
       return buildMoebooruUrl('https://yande.re/post.json', query, true);
     },
@@ -288,7 +384,7 @@ export const SOURCES = {
     shortName: 'Konachan',
     home: 'https://konachan.com/',
     description: '壁纸与高分辨率插画',
-    capabilities: { date: false, video: true },
+    capabilities: { image: true, date: false, video: false },
     buildUrl(query) {
       return buildMoebooruUrl('https://konachan.com/post.json', query, false);
     },
@@ -300,12 +396,46 @@ export const SOURCES = {
       return parseMoebooru('konachan', payload);
     }
   },
+  konachanNet: {
+    name: 'Konachan.net',
+    shortName: 'Konachan.net',
+    home: 'https://konachan.net/',
+    description: 'Konachan 全年龄插画与壁纸站',
+    capabilities: { image: true, date: false, video: false },
+    buildUrl(query) {
+      return buildMoebooruUrl('https://konachan.net/post.json', query, false);
+    },
+    buildTagUrl(query) {
+      return buildMoebooruTagUrl('https://konachan.net/tag.json', query);
+    },
+    parseTags: parseTagRows,
+    parse(payload) {
+      return parseMoebooru('konachanNet', payload);
+    }
+  },
+  lolibooru: {
+    name: 'Lolibooru',
+    shortName: 'Lolibooru',
+    home: 'https://lolibooru.moe/',
+    description: 'Moebooru 协议动漫插画图库',
+    capabilities: { image: true, date: false, video: false },
+    buildUrl(query) {
+      return buildMoebooruUrl('https://lolibooru.moe/post.json', query, false);
+    },
+    buildTagUrl(query) {
+      return buildMoebooruTagUrl('https://lolibooru.moe/tag.json', query);
+    },
+    parseTags: parseTagRows,
+    parse(payload) {
+      return parseMoebooru('lolibooru', payload);
+    }
+  },
   gelbooru: {
     name: 'Gelbooru',
     shortName: 'Gelbooru',
     home: 'https://gelbooru.com/',
     description: '大型标签化媒体图库',
-    capabilities: { date: false, video: true },
+    capabilities: { image: true, date: false, video: true },
     buildUrl(query) {
       return buildGelbooruUrl('https://gelbooru.com/index.php', query);
     },
@@ -317,43 +447,55 @@ export const SOURCES = {
       return parseGelbooru('gelbooru', payload);
     }
   },
+  xbooru: {
+    name: 'Xbooru',
+    shortName: 'Xbooru',
+    home: 'https://xbooru.com/',
+    description: 'Gelbooru 协议图片与视频图库',
+    capabilities: { image: true, date: false, video: true },
+    buildUrl(query) {
+      return buildGelbooruUrl('https://xbooru.com/index.php', query);
+    },
+    buildTagUrl(query) {
+      return buildGelbooruTagUrl('https://xbooru.com/index.php', query);
+    },
+    parseTags: parseTagRows,
+    parse(payload) {
+      return parseGelbooru('xbooru', payload);
+    }
+  },
   danbooru: {
     name: 'Danbooru',
     shortName: 'Danbooru',
     home: 'https://danbooru.donmai.us/',
     description: '标签体系完整的动漫图库',
-    capabilities: { date: false, video: true },
+    capabilities: { image: true, date: false, video: true },
     buildUrl(query) {
-      const url = new URL('https://danbooru.donmai.us/posts.json');
-      const mediaTag = query.mediaType === 'video'
-        ? 'filetype:mp4,webm'
-        : 'filetype:jpg,jpeg,png,gif';
-
-      return addSearchParams(url, {
-        limit: PAGE_SIZE,
-        page: query.page,
-        tags: joinTags(query, ['order:score_desc', mediaTag])
-      });
+      return buildDanbooruUrl('https://danbooru.donmai.us/posts.json', query);
     },
     buildTagUrl(query) {
       return buildDanbooruTagUrl('https://danbooru.donmai.us/tags.json', query);
     },
     parseTags: parseTagRows,
     parse(payload) {
-      return (Array.isArray(payload) ? payload : []).map(post => normalizePost('danbooru', {
-        id: post.id,
-        score: post.score,
-        rating: post.rating,
-        createdAt: post.created_at,
-        width: post.image_width,
-        height: post.image_height,
-        tags: post.tag_string,
-        preview: post.preview_file_url,
-        sample: post.large_file_url || post.file_url,
-        file: post.file_url,
-        postUrl: `https://danbooru.donmai.us/posts/${post.id}`,
-        extension: post.file_ext
-      }));
+      return parseDanbooru('danbooru', payload);
+    }
+  },
+  aibooru: {
+    name: 'AIBooru',
+    shortName: 'AIBooru',
+    home: 'https://aibooru.online/',
+    description: 'AI 生成作品标签图库',
+    capabilities: { image: true, date: false, video: true },
+    buildUrl(query) {
+      return buildDanbooruUrl('https://aibooru.online/posts.json', query);
+    },
+    buildTagUrl(query) {
+      return buildDanbooruTagUrl('https://aibooru.online/tags.json', query);
+    },
+    parseTags: parseTagRows,
+    parse(payload) {
+      return parseDanbooru('aibooru', payload);
     }
   },
   sankaku: {
@@ -361,7 +503,7 @@ export const SOURCES = {
     shortName: 'Sankaku',
     home: 'https://chan.sankakucomplex.com/',
     description: 'Sankaku Complex 媒体频道',
-    capabilities: { date: false, video: true },
+    capabilities: { image: true, date: false, video: true },
     buildUrl(query) {
       const url = new URL('https://capi-v2.sankakucomplex.com/posts');
       return addSearchParams(url, {
@@ -397,7 +539,7 @@ export const SOURCES = {
     shortName: 'Safebooru',
     home: 'https://safebooru.org/',
     description: '全年龄标签化图库',
-    capabilities: { date: false, video: false },
+    capabilities: { image: true, date: false, video: false },
     buildUrl(query) {
       return buildGelbooruUrl('https://safebooru.org/index.php', query, false);
     },
@@ -414,7 +556,7 @@ export const SOURCES = {
     shortName: 'Rule34',
     home: 'https://rule34.xxx/',
     description: '标签化图片与视频图库',
-    capabilities: { date: false, video: true },
+    capabilities: { image: true, date: false, video: true },
     buildUrl(query) {
       return buildGelbooruUrl('https://api.rule34.xxx/index.php', query);
     },
@@ -431,7 +573,7 @@ export const SOURCES = {
     shortName: 'e621',
     home: 'https://e621.net/',
     description: '细分标签媒体图库',
-    capabilities: { date: false, video: true },
+    capabilities: { image: true, date: false, video: true },
     buildUrl(query) {
       const url = new URL('https://e621.net/posts.json');
       return addSearchParams(url, {
@@ -456,7 +598,7 @@ export const SOURCES = {
     shortName: 'e926',
     home: 'https://e926.net/',
     description: 'e621 的全年龄内容镜像',
-    capabilities: { date: false, video: true },
+    capabilities: { image: true, date: false, video: true },
     buildUrl(query) {
       const url = new URL('https://e926.net/posts.json');
       return addSearchParams(url, {
@@ -475,6 +617,41 @@ export const SOURCES = {
     parse(payload) {
       return parseE6('e926', payload);
     }
+  },
+  sakugabooru: {
+    name: 'Sakugabooru',
+    shortName: 'Sakuga',
+    home: 'https://sakugabooru.com/',
+    description: '动画作画片段与原画媒体库',
+    capabilities: { image: true, date: false, video: true },
+    buildUrl(query) {
+      return buildMoebooruUrl('https://sakugabooru.com/post.json', query, false);
+    },
+    buildTagUrl(query) {
+      return buildMoebooruTagUrl('https://sakugabooru.com/tag.json', query);
+    },
+    parseTags: parseTagRows,
+    parse(payload) {
+      return parseMoebooru('sakugabooru', payload);
+    }
+  },
+  derpibooru: {
+    name: 'Derpibooru',
+    shortName: 'Derpibooru',
+    home: 'https://derpibooru.org/',
+    description: '插画、GIF 与 WebM 标签图库',
+    capabilities: { image: true, date: false, video: true },
+    buildUrl: buildDerpibooruUrl,
+    parse: parseDerpibooru
+  },
+  wallhaven: {
+    name: 'Wallhaven',
+    shortName: 'Wallhaven',
+    home: 'https://wallhaven.cc/',
+    description: '公开高分辨率壁纸图库',
+    capabilities: { image: true, date: false, video: false },
+    buildUrl: buildWallhavenUrl,
+    parse: parseWallhaven
   }
 };
 

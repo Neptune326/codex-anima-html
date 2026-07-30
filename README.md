@@ -6,7 +6,7 @@ Atlas Gallery 是一个基于原生 HTML、CSS、JavaScript 和 Node.js 的多�
 
 ## 功能概览
 
-- 集成 yande.re、Konachan、Gelbooru、Danbooru、Sankaku Channel、Safebooru、Rule34、e621 和 e926。
+- 集成 16 个图片或视频站点，包括 yande.re、Konachan、Konachan.net、Lolibooru、Gelbooru、Xbooru、Danbooru、AIBooru、Sankaku Channel、Safebooru、Rule34、e621、e926、Sakugabooru、Derpibooru 和 Wallhaven。
 - 支持图片与视频分类、标签搜索、内容分级、日期周期和尺寸筛选。
 - 支持等高网格与瀑布流、图片懒加载、滚动加载和响应式布局。
 - 支持图片缩放、视频自动播放、静音、循环和播放进度保存。
@@ -51,8 +51,8 @@ npm test
 
 ### 浏览与搜索
 
-1. 在“站点来源”区域直接点击站点按钮；站点来源不是下拉菜单。
-2. 选择“图片”或“视频”，不支持视频的站点会自动切回图片。
+1. 先选择“图片”或“视频”，页面只显示支持当前媒体类型的站点。
+2. 在“站点来源”区域直接点击站点按钮；站点来源不是下拉菜单。切换媒体类型时，当前站点不兼容会自动选择首个可用站点。
 3. 在搜索框输入标签并提交。多个标签使用空格分隔，多词标签使用下划线，例如 `blue_sky landscape`；排除标签使用 `-` 前缀，例如 `landscape -night`。
 4. 使用内容分级、日期周期和尺寸控件缩小结果范围。日期筛选只在站点 API 支持时启用。
 5. 页面滚动到底部时会自动加载下一页；工具栏可切换等高网格或瀑布流。
@@ -149,6 +149,10 @@ Invoke-RestMethod http://127.0.0.1:4173/api/health
 响应中的 `proxyMode` 表示代理选择策略：`configured` 表示读取了环境变量，`auto` 表示 Windows 将尝试本地 `7897/7890`，`direct` 表示直接连接。该字段不执行目标站点连通性测试。
 
 ## 部署手册
+
+全新 Linux 服务器的逐步安装、Nginx 静态托管、systemd、HTTPS、更新、备份和故障排查说明见 [使用与 Linux 部署手册](docs/USER_AND_LINUX_DEPLOYMENT.md)。可直接使用的配置模板位于 `deploy/`。
+
+完整功能需要保留 Node 服务提供 `/api/proxy` 与 `/api/download`。推荐由 Nginx 直接提供 `public/` 静态资源，并把 `/api/` 反向代理到仅监听 `127.0.0.1:4173` 的 Node 服务。
 
 ### 直接运行
 
@@ -276,6 +280,8 @@ anima-html/
 │  ├─ js/storage.js        # localStorage、IndexedDB 和数据导入导出
 │  └─ index.html           # 页面结构与内置图标
 ├─ src/server.js           # 静态服务、同源代理和下载接口
+├─ deploy/                 # systemd、Nginx 和环境变量模板
+├─ docs/                   # 使用与 Linux 部署手册
 ├─ test/                   # Node.js 原生测试
 └─ package.json            # 启动、检查和测试命令
 ```

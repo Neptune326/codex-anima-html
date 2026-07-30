@@ -96,6 +96,43 @@ test('request retry policy only retries transient failures', async () => {
   assert.equal(retryDelay(2), 1500);
 });
 
+test('Pixiv artwork parser accepts IDs and official artwork URLs only', async () => {
+  const { parsePixivArtworkId } = await import('../public/js/library.js');
+
+  assert.equal(parsePixivArtworkId('12345678'), '12345678');
+  assert.equal(
+    parsePixivArtworkId('https://www.pixiv.net/artworks/12345678'),
+    '12345678'
+  );
+  assert.equal(
+    parsePixivArtworkId('https://www.pixiv.net/en/artworks/987654321/'),
+    '987654321'
+  );
+  assert.equal(parsePixivArtworkId('https://example.com/artworks/12345678'), '');
+  assert.equal(parsePixivArtworkId('https://www.pixiv.net/users/12345678'), '');
+  assert.equal(parsePixivArtworkId('not-an-artwork'), '');
+});
+
+test('media type filters sources and repairs incompatible selections', async () => {
+  const {
+    compatibleSourceId,
+    sourceIdsForMedia,
+    sourceSupportsMedia
+  } = await import('../public/js/library.js');
+  const sources = {
+    imageOnly: { capabilities: { image: true, video: false } },
+    mixed: { capabilities: { image: true, video: true } },
+    videoOnly: { capabilities: { image: false, video: true } }
+  };
+
+  assert.equal(sourceSupportsMedia(sources.imageOnly, 'image'), true);
+  assert.equal(sourceSupportsMedia(sources.imageOnly, 'video'), false);
+  assert.deepEqual(sourceIdsForMedia(sources, 'image'), ['imageOnly', 'mixed']);
+  assert.deepEqual(sourceIdsForMedia(sources, 'video'), ['mixed', 'videoOnly']);
+  assert.equal(compatibleSourceId(sources, 'imageOnly', 'video'), 'mixed');
+  assert.equal(compatibleSourceId(sources, 'videoOnly', 'video'), 'videoOnly');
+});
+
 test('download queue recovery pauses interrupted work and removes invalid entries', async () => {
   const { normalizeDownloadQueue } = await import('../public/js/storage.js');
   const post = { id: '1', source: 'danbooru', file: 'https://cdn.donmai.us/a.jpg' };
