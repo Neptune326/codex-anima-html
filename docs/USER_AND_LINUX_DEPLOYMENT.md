@@ -1,6 +1,6 @@
 # Atlas Gallery 使用与 Linux 部署手册
 
-本文档适用于 Atlas Gallery `2.5.2`。示例服务器使用 Ubuntu `22.04/24.04` 或 Debian `12`，部署目录为 `/opt/codex-anima-html`，Node 服务监听 `127.0.0.1:4173`，Nginx 对外提供网页和 HTTPS。
+本文档适用于 Atlas Gallery `2.6.0`。示例服务器使用 Ubuntu `22.04/24.04` 或 Debian `12`，部署目录为 `/opt/codex-anima-html`，Node 服务监听 `127.0.0.1:4173`，Nginx 对外提供网页和 HTTPS。
 
 ## 1. 部署结构
 
@@ -131,7 +131,7 @@ curl --fail http://127.0.0.1:4173/api/health
 健康检查应返回类似内容：
 
 ```json
-{"ok":true,"version":"2.5.2","proxyMode":"direct"}
+{"ok":true,"version":"2.6.0","proxyMode":"direct"}
 ```
 
 `proxyMode` 的值：

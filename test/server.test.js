@@ -109,7 +109,7 @@ test('server serves health and static resources without hanging sockets', async 
     assert.equal(health.status, 200);
     assert.deepEqual(JSON.parse(health.body), {
       ok: true,
-      version: '2.5.2',
+      version: '2.6.0',
       proxyMode: app.proxyMode
     });
 
@@ -148,8 +148,20 @@ test('new source APIs and media CDN hosts are allowlisted explicitly', () => {
     'xbooru.com'
   );
   assert.equal(
+    validateTarget('https://hypnohub.net/index.php?page=dapi').hostname,
+    'hypnohub.net'
+  );
+  assert.equal(
+    validateTarget('https://tbib.org/index.php?page=dapi').hostname,
+    'tbib.org'
+  );
+  assert.equal(
     validateTarget('https://aibooru.online/posts.json').hostname,
     'aibooru.online'
+  );
+  assert.equal(
+    validateTarget('https://e6ai.net/posts.json').hostname,
+    'e6ai.net'
   );
   assert.equal(
     validateTarget('https://derpibooru.org/api/v1/json/search/images').hostname,
@@ -174,6 +186,14 @@ test('new source APIs and media CDN hosts are allowlisted explicitly', () => {
   assert.equal(
     validateDownloadTarget('https://img.xbooru.com/images/sample.webm').hostname,
     'img.xbooru.com'
+  );
+  assert.equal(
+    validateDownloadTarget('https://static1.e6ai.net/data/sample.webm').hostname,
+    'static1.e6ai.net'
+  );
+  assert.equal(
+    validateDownloadTarget('https://tbib.org/images/1/sample.jpg').hostname,
+    'tbib.org'
   );
 });
 

@@ -278,10 +278,12 @@ function renderSources() {
       type="button"
       data-source="${sourceId}"
       title="${escapeHtml(source.description)}"
-      role="listitem"
+      role="radio"
+      aria-checked="${sourceId === state.source}"
     >
       <span class="source-health is-${sourceHealth[sourceId]}" aria-hidden="true"></span>
-      <span>${escapeHtml(source.shortName)}</span>
+      <span class="source-monogram" aria-hidden="true">${escapeHtml(source.shortName.slice(0, 1).toUpperCase())}</span>
+      <span class="source-name">${escapeHtml(source.shortName)}</span>
       <span class="source-capability" title="支持${mediaName}">
         ${icon(state.mediaType)}
       </span>
@@ -458,25 +460,39 @@ function renderControls() {
   elements.gallery.dataset.layout = state.settings.galleryLayout;
 
   document.querySelectorAll('[data-view]').forEach(button => {
-    button.classList.toggle('is-active', button.dataset.view === state.view);
+    const active = button.dataset.view === state.view;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-selected', String(active));
   });
   document.querySelectorAll('[data-media-type]').forEach(button => {
-    button.classList.toggle('is-active', button.dataset.mediaType === state.mediaType);
+    const active = button.dataset.mediaType === state.mediaType;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-pressed', String(active));
   });
   document.querySelectorAll('[data-rating]').forEach(button => {
-    button.classList.toggle('is-selected', state.ratings.includes(button.dataset.rating));
+    const selected = state.ratings.includes(button.dataset.rating);
+    button.classList.toggle('is-selected', selected);
+    button.setAttribute('aria-pressed', String(selected));
   });
   document.querySelectorAll('[data-period]').forEach(button => {
-    button.classList.toggle('is-selected', button.dataset.period === state.period);
+    const selected = button.dataset.period === state.period;
+    button.classList.toggle('is-selected', selected);
+    button.setAttribute('aria-pressed', String(selected));
   });
   document.querySelectorAll('[data-theme-value]').forEach(button => {
-    button.classList.toggle('is-active', button.dataset.themeValue === state.settings.theme);
+    const active = button.dataset.themeValue === state.settings.theme;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-pressed', String(active));
   });
   document.querySelectorAll('[data-accent-value]').forEach(button => {
-    button.classList.toggle('is-selected', button.dataset.accentValue === state.settings.accent);
+    const selected = button.dataset.accentValue === state.settings.accent;
+    button.classList.toggle('is-selected', selected);
+    button.setAttribute('aria-pressed', String(selected));
   });
   document.querySelectorAll('[data-layout]').forEach(button => {
-    button.classList.toggle('is-active', button.dataset.layout === state.settings.galleryLayout);
+    const active = button.dataset.layout === state.settings.galleryLayout;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-pressed', String(active));
   });
   document.querySelectorAll('[data-setting]').forEach(input => {
     input.checked = Boolean(state.settings[input.dataset.setting]);
@@ -508,6 +524,26 @@ function renderControls() {
   renderRecentSearches();
   renderCollectionTools();
   persist();
+}
+
+function createRipple(event, button) {
+  if (state.settings.reduceMotion || button.disabled) {
+    return;
+  }
+
+  const bounds = button.getBoundingClientRect();
+  const size = Math.max(bounds.width, bounds.height) * 1.6;
+  const ripple = document.createElement('span');
+  const x = event.clientX || bounds.left + bounds.width / 2;
+  const y = event.clientY || bounds.top + bounds.height / 2;
+
+  ripple.className = 'material-ripple';
+  ripple.style.width = `${size}px`;
+  ripple.style.height = `${size}px`;
+  ripple.style.left = `${x - bounds.left - size / 2}px`;
+  ripple.style.top = `${y - bounds.top - size / 2}px`;
+  button.append(ripple);
+  ripple.addEventListener('animationend', () => ripple.remove(), { once: true });
 }
 
 function renderHeader() {
@@ -1470,6 +1506,13 @@ async function checkAllSourceHealth() {
 }
 
 function registerEvents() {
+  document.addEventListener('pointerdown', event => {
+    const button = event.target.closest('button:not(.drawer-scrim)');
+    if (button) {
+      createRipple(event, button);
+    }
+  });
+
   document.addEventListener('click', event => {
     const button = event.target.closest('button');
     if (!button) {

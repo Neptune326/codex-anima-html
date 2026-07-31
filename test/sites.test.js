@@ -11,17 +11,20 @@ test('site adapters build allowlisted API URLs', async () => {
     endDate: '2026-07-26'
   });
 
-  assert.equal(Object.keys(SOURCES).length, 16);
+  assert.equal(Object.keys(SOURCES).length, 19);
   assert.equal(new URL(SOURCES.yandere.buildUrl(query)).hostname, 'yande.re');
   assert.equal(new URL(SOURCES.konachan.buildUrl(query)).pathname, '/post.json');
   assert.equal(new URL(SOURCES.konachanNet.buildUrl(query)).hostname, 'konachan.net');
   assert.equal(new URL(SOURCES.lolibooru.buildUrl(query)).hostname, 'lolibooru.moe');
   assert.equal(new URL(SOURCES.xbooru.buildUrl(query)).hostname, 'xbooru.com');
+  assert.equal(new URL(SOURCES.hypnohub.buildUrl(query)).hostname, 'hypnohub.net');
+  assert.equal(new URL(SOURCES.tbib.buildUrl(query)).hostname, 'tbib.org');
   assert.match(SOURCES.yandere.buildUrl(query).searchParams.get('tags'), /date:2026-07-20\.\.2026-07-26/);
   assert.match(SOURCES.gelbooru.buildUrl(query).searchParams.get('tags'), /-text/);
   assert.match(SOURCES.danbooru.buildUrl(query).searchParams.get('tags'), /filetype:jpg,jpeg,png,gif/);
   assert.equal(new URL(SOURCES.e621.buildUrl(query)).hostname, 'e621.net');
   assert.equal(new URL(SOURCES.e926.buildUrl(query)).hostname, 'e926.net');
+  assert.equal(new URL(SOURCES.e6ai.buildUrl(query)).hostname, 'e6ai.net');
   assert.equal(new URL(SOURCES.aibooru.buildUrl(query)).hostname, 'aibooru.online');
   assert.equal(new URL(SOURCES.sakugabooru.buildUrl(query)).hostname, 'sakugabooru.com');
   assert.equal(new URL(SOURCES.derpibooru.buildUrl(query)).pathname, '/api/v1/json/search/images');
@@ -30,6 +33,7 @@ test('site adapters build allowlisted API URLs', async () => {
   assert.equal(SOURCES.yandere.capabilities.video, false);
   assert.equal(SOURCES.konachan.capabilities.video, false);
   assert.equal(SOURCES.xbooru.capabilities.video, true);
+  assert.equal(SOURCES.tbib.capabilities.video, false);
 });
 
 test('site adapters build and parse remote tag suggestions', async () => {
@@ -50,6 +54,9 @@ test('site adapters build and parse remote tag suggestions', async () => {
   assert.equal(new URL(SOURCES.konachanNet.buildTagUrl('blue')).hostname, 'konachan.net');
   assert.equal(new URL(SOURCES.lolibooru.buildTagUrl('blue')).hostname, 'lolibooru.moe');
   assert.equal(new URL(SOURCES.xbooru.buildTagUrl('blue')).hostname, 'xbooru.com');
+  assert.equal(new URL(SOURCES.hypnohub.buildTagUrl('blue')).hostname, 'hypnohub.net');
+  assert.equal(new URL(SOURCES.tbib.buildTagUrl('blue')).hostname, 'tbib.org');
+  assert.equal(new URL(SOURCES.e6ai.buildTagUrl('blue')).hostname, 'e6ai.net');
   assert.equal(SOURCES.sankaku.buildTagUrl, undefined);
   assert.deepEqual(
     SOURCES.danbooru.parseTags([{ name: 'blue_hair' }, { name: 'blue_eyes' }]),
@@ -138,9 +145,27 @@ test('new adapters normalize image and video payloads', async () => {
   });
   assert.equal(xbooruPost.type, 'video');
   assert.equal(xbooruPost.postUrl, 'https://xbooru.com/index.php?page=post&s=view&id=43');
+
+  const [tbibPost] = SOURCES.tbib.parse({
+    post: [{
+      id: 44,
+      directory: 8487,
+      image: 'sample.jpg',
+      score: 12,
+      rating: 'general',
+      sample: true,
+      width: 2048,
+      height: 1536,
+      tags: 'landscape sky'
+    }]
+  });
+  assert.equal(tbibPost.preview, 'https://tbib.org/thumbnails/8487/thumbnail_sample.jpg');
+  assert.equal(tbibPost.sample, 'https://tbib.org/samples/8487/sample_sample.jpg');
+  assert.equal(tbibPost.file, 'https://tbib.org/images/8487/sample.jpg');
+  assert.equal(tbibPost.type, 'image');
 });
 
-test('e621 and e926 adapters flatten tags and normalize media metadata', async () => {
+test('e621, e926 and e6AI adapters flatten tags and normalize media metadata', async () => {
   const { SOURCES } = await import('../public/js/sites.js');
   const payload = {
     posts: [{
@@ -166,10 +191,13 @@ test('e621 and e926 adapters flatten tags and normalize media metadata', async (
 
   const e621Post = SOURCES.e621.parse(payload)[0];
   const e926Post = SOURCES.e926.parse(payload)[0];
+  const e6aiPost = SOURCES.e6ai.parse(payload)[0];
   assert.deepEqual(e621Post.tags, ['blue_sky', 'canine', 'sample_character']);
   assert.equal(e621Post.type, 'video');
   assert.equal(e621Post.rating, 'safe');
   assert.equal(e926Post.rating, 'safe');
+  assert.equal(e6aiPost.type, 'video');
+  assert.equal(e6aiPost.postUrl, 'https://e6ai.net/posts/123');
   assert.equal(e621Post.width, 640);
 });
 

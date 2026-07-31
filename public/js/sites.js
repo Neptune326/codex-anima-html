@@ -265,6 +265,43 @@ function parseE6(sourceId, payload) {
   }));
 }
 
+function buildE6Url(baseUrl, query) {
+  return addSearchParams(new URL(baseUrl), {
+    limit: PAGE_SIZE,
+    page: query.page,
+    tags: joinTags(query, [
+      'order:score',
+      query.mediaType === 'video' ? 'type:webm' : '-type:webm'
+    ])
+  });
+}
+
+function tbibAssetUrl(post, folder, prefix = '') {
+  if (!post?.directory || !post?.image) {
+    return '';
+  }
+
+  return `https://tbib.org/${folder}/${post.directory}/${prefix}${post.image}`;
+}
+
+function parseTbib(payload) {
+  return parseGelbooruPayload(payload).map(post => normalizePost('tbib', {
+    id: post.id,
+    score: post.score,
+    rating: post.rating,
+    createdAt: post.change,
+    width: post.width,
+    height: post.height,
+    tags: post.tags,
+    preview: tbibAssetUrl(post, 'thumbnails', 'thumbnail_'),
+    sample: post.sample
+      ? tbibAssetUrl(post, 'samples', 'sample_')
+      : tbibAssetUrl(post, 'images'),
+    file: tbibAssetUrl(post, 'images'),
+    postUrl: `https://tbib.org/index.php?page=post&s=view&id=${post.id}`
+  }));
+}
+
 function buildDanbooruUrl(baseUrl, query) {
   const url = new URL(baseUrl);
   const mediaTag = query.mediaType === 'video'
@@ -464,6 +501,38 @@ export const SOURCES = {
       return parseGelbooru('xbooru', payload);
     }
   },
+  hypnohub: {
+    name: 'Hypnohub',
+    shortName: 'Hypnohub',
+    home: 'https://hypnohub.net/',
+    description: 'Gelbooru 协议标签化图片与视频图库',
+    capabilities: { image: true, date: false, video: true },
+    buildUrl(query) {
+      return buildGelbooruUrl('https://hypnohub.net/index.php', query);
+    },
+    buildTagUrl(query) {
+      return buildGelbooruTagUrl('https://hypnohub.net/index.php', query);
+    },
+    parseTags: parseTagRows,
+    parse(payload) {
+      return parseGelbooru('hypnohub', payload);
+    }
+  },
+  tbib: {
+    name: 'The Big ImageBoard',
+    shortName: 'TBIB',
+    home: 'https://tbib.org/',
+    description: '大型动漫标签图片索引站',
+    capabilities: { image: true, date: false, video: false },
+    buildUrl(query) {
+      return buildGelbooruUrl('https://tbib.org/index.php', query, false);
+    },
+    buildTagUrl(query) {
+      return buildGelbooruTagUrl('https://tbib.org/index.php', query);
+    },
+    parseTags: parseTagRows,
+    parse: parseTbib
+  },
   danbooru: {
     name: 'Danbooru',
     shortName: 'Danbooru',
@@ -575,15 +644,7 @@ export const SOURCES = {
     description: '细分标签媒体图库',
     capabilities: { image: true, date: false, video: true },
     buildUrl(query) {
-      const url = new URL('https://e621.net/posts.json');
-      return addSearchParams(url, {
-        limit: PAGE_SIZE,
-        page: query.page,
-        tags: joinTags(query, [
-          'order:score',
-          query.mediaType === 'video' ? 'type:webm' : '-type:webm'
-        ])
-      });
+      return buildE6Url('https://e621.net/posts.json', query);
     },
     buildTagUrl(query) {
       return buildDanbooruTagUrl('https://e621.net/tags.json', query);
@@ -600,15 +661,7 @@ export const SOURCES = {
     description: 'e621 的全年龄内容镜像',
     capabilities: { image: true, date: false, video: true },
     buildUrl(query) {
-      const url = new URL('https://e926.net/posts.json');
-      return addSearchParams(url, {
-        limit: PAGE_SIZE,
-        page: query.page,
-        tags: joinTags(query, [
-          'order:score',
-          query.mediaType === 'video' ? 'type:webm' : '-type:webm'
-        ])
-      });
+      return buildE6Url('https://e926.net/posts.json', query);
     },
     buildTagUrl(query) {
       return buildDanbooruTagUrl('https://e926.net/tags.json', query);
@@ -616,6 +669,23 @@ export const SOURCES = {
     parseTags: parseTagRows,
     parse(payload) {
       return parseE6('e926', payload);
+    }
+  },
+  e6ai: {
+    name: 'e6AI',
+    shortName: 'e6AI',
+    home: 'https://e6ai.net/',
+    description: 'AI 生成作品的细分标签媒体图库',
+    capabilities: { image: true, date: false, video: true },
+    buildUrl(query) {
+      return buildE6Url('https://e6ai.net/posts.json', query);
+    },
+    buildTagUrl(query) {
+      return buildDanbooruTagUrl('https://e6ai.net/tags.json', query);
+    },
+    parseTags: parseTagRows,
+    parse(payload) {
+      return parseE6('e6ai', payload);
     }
   },
   sakugabooru: {

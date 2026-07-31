@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="light dark">
   <meta name="description" content="多站点图片与视频图库浏览器">
   <title>Atlas Gallery</title>
-  <link rel="stylesheet" href="/css/styles.css?v=2.5.2">
+  <link rel="stylesheet" href="/css/styles.css?v=2.6.0">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true">
@@ -130,17 +130,17 @@
         </span>
       </a>
 
-      <nav class="view-tabs" aria-label="内容视图">
-        <button class="view-tab is-active" type="button" data-view="popular">
+      <nav class="view-tabs" aria-label="内容视图" role="tablist">
+        <button class="view-tab is-active" type="button" data-view="popular" role="tab" aria-selected="true">
           <svg class="icon"><use href="#icon-fire"></use></svg>
           <span>热门</span>
         </button>
-        <button class="view-tab" type="button" data-view="favorites">
+        <button class="view-tab" type="button" data-view="favorites" role="tab" aria-selected="false">
           <svg class="icon"><use href="#icon-favorite"></use></svg>
           <span>收藏</span>
           <span class="tab-count" id="favoriteCount">0</span>
         </button>
-        <button class="view-tab" type="button" data-view="history">
+        <button class="view-tab" type="button" data-view="history" role="tab" aria-selected="false">
           <svg class="icon"><use href="#icon-history"></use></svg>
           <span>历史</span>
         </button>
@@ -180,7 +180,7 @@
           <span class="control-label">站点来源</span>
           <span class="source-count" id="sourceCount">0 个站点</span>
         </div>
-        <div class="source-scroller" id="sourceList" role="list"></div>
+        <div class="source-scroller" id="sourceList" role="radiogroup" aria-label="站点来源"></div>
         <button class="pixiv-launch-button" id="pixivButton" type="button" title="打开 Pixiv 作品">
           <svg class="icon"><use href="#icon-launch"></use></svg>
           Pixiv 直达
@@ -556,6 +556,6 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script type="module" src="/js/app.js?v=2.5.2"></script>
+  <script type="module" src="/js/app.js?v=2.6.0"></script>
 </body>
 </html>
