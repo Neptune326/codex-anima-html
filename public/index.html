@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="light dark">
   <meta name="description" content="多站点图片与视频图库浏览器">
   <title>Atlas Gallery</title>
-  <link rel="stylesheet" href="/css/styles.css?v=2.6.0">
+  <link rel="stylesheet" href="/css/styles.css?v=2.7.0">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true">
@@ -394,6 +394,27 @@
       </section>
 
       <section class="settings-section">
+        <h3>过滤与下载</h3>
+        <label class="text-field">
+          <span>标签黑名单</span>
+          <input id="blockedTags" type="text" autocomplete="off" placeholder="gore text watermark">
+          <small>用空格分隔；命中任一标签的媒体将被隐藏</small>
+        </label>
+        <div class="settings-field-grid">
+          <label class="text-field">
+            <span>下载并发数</span>
+            <input id="downloadConcurrency" type="number" min="1" max="4" step="1" inputmode="numeric">
+            <small>允许范围 1-4</small>
+          </label>
+          <label class="text-field">
+            <span>文件名模板</span>
+            <input id="downloadNameTemplate" type="text" maxlength="100" autocomplete="off">
+            <small>{source} {id} {type} {width} {height}</small>
+          </label>
+        </div>
+      </section>
+
+      <section class="settings-section">
         <h3>数据</h3>
         <div class="button-row">
           <button class="outlined-button" id="exportButton" type="button">
@@ -556,6 +577,6 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script type="module" src="/js/app.js?v=2.6.0"></script>
+  <script type="module" src="/js/app.js?v=2.7.0"></script>
 </body>
 </html>

@@ -6,7 +6,7 @@ Atlas Gallery 是一个基于原生 HTML、CSS、JavaScript 和 Node.js 的多�
 
 ## 功能概览
 
-- 集成 19 个图片或视频站点，包括 yande.re、Konachan、Konachan.net、Lolibooru、Gelbooru、Xbooru、Hypnohub、TBIB、Danbooru、AIBooru、Sankaku Channel、Safebooru、Rule34、e621、e926、e6AI、Sakugabooru、Derpibooru 和 Wallhaven。
+- 集成 22 个图片或视频站点，包括 yande.re、Konachan、Konachan.net、Lolibooru、Gelbooru、Xbooru、Hypnohub、TBIB、Danbooru、AIBooru、Sankaku Channel、Safebooru、Rule34、e621、e926、e6AI、Sakugabooru、Derpibooru、Furbooru、Manebooru、Twibooru 和 Wallhaven。
 - 支持图片与视频分类、标签搜索、内容分级、日期周期和尺寸筛选。
 - 支持等高网格与瀑布流、图片懒加载、滚动加载和响应式布局。
 - 支持图片缩放、视频自动播放、静音、循环和播放进度保存。
@@ -86,7 +86,8 @@ Danbooru 使用公开接口浏览，不要求登录、Cookie、用户名或 API 
 - 卡片下载按钮：下载单个媒体。
 - 批量选择：勾选卡片后点击“下载所选”。
 - 收藏页：下载当前智能收藏夹或全部收藏媒体。
-- 下载队列同时处理 `2` 项，可取消进行中的任务或重试失败项。
+- 下载队列默认同时处理 `2` 项，可在全局设置中调整为 `1-4` 项，并可取消进行中的任务或重试失败项。
+- 文件名模板支持 `{source}`、`{id}`、`{type}`、`{width}` 和 `{height}` 占位符，扩展名自动保留。
 
 浏览器首次批量下载时可能询问是否允许此站点下载多个文件，需要选择允许。服务端单个媒体文件上限为 `256 MB`；媒体地址必须属于已集成站点的 HTTPS 域名。
 
@@ -106,6 +107,7 @@ Danbooru 使用公开接口浏览，不要求登录、Cookie、用户名或 API 
 - 外观：明亮/深色主题，以及蓝、绿、珊瑚红、紫罗兰四种主题色。
 - 预览：隐藏详情、视频自动播放、默认静音和循环播放。
 - 浏览：敏感缩略图模糊、紧凑网格和减少动画。
+- 过滤与下载：设置全局标签黑名单、下载并发数和文件名模板。
 - 网络：界面保留包含 `{url}` 的自定义 CORS 代理模板。内置 Node 服务的内容安全策略只允许同源请求，默认部署时应留空并使用 `/api/proxy`。
 
 ## 网络与代理
@@ -244,7 +246,7 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-Node 服务会在内存中缓冲上游响应：普通站点 API 单次上限为 `16 MB`，媒体下载单次上限为 `256 MB`。浏览器下载队列并发为 `2`；每个下载在拼接响应时最多同时持有约 `512 MB` 的分块和连续缓冲区，因此两个满额下载可能临时占用约 `1,024 MB` 的服务器内存，未计入 Node.js 和操作系统本身。当前实现适合个人或受控用户范围部署。
+Node 服务会在内存中缓冲上游响应：普通站点 API 单次上限为 `16 MB`，媒体下载单次上限为 `256 MB`。浏览器下载队列并发可设为 `1-4`；每个下载在拼接响应时最多同时持有约 `512 MB` 的分块和连续缓冲区，因此并发 `4` 个满额下载可能临时占用约 `2,048 MB` 的服务器内存，未计入 Node.js 和操作系统本身。当前实现适合个人或受控用户范围部署。
 
 ### 更新部署
 

@@ -45,6 +45,23 @@ export function tagTokens(value) {
     .filter(Boolean);
 }
 
+function canonicalTag(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_');
+}
+
+export function matchesBlockedTags(post, blockedTags) {
+  const blocked = new Set(tagTokens(blockedTags).map(canonicalTag));
+  if (!blocked.size) {
+    return false;
+  }
+
+  return (Array.isArray(post?.tags) ? post.tags : [])
+    .some(tag => blocked.has(canonicalTag(tag)));
+}
+
 export function suggestTags(input, candidates = [], limit = 8) {
   const text = String(input || '');
   const current = text.split(/\s+/).pop() || '';
@@ -174,9 +191,16 @@ export function mediaIdentity(post) {
   }
 }
 
-export function downloadFilename(post) {
-  const source = String(post?.source || 'media').replace(/[^a-z0-9_-]/gi, '-');
-  const id = String(post?.id || Date.now()).replace(/[^a-z0-9_-]/gi, '-');
+export function normalizeDownloadConcurrency(value) {
+  return Math.min(4, Math.max(1, Math.round(Number(value) || 2)));
+}
+
+export function normalizeDownloadNameTemplate(value) {
+  return String(value || '').trim().replace(/[\r\n]+/g, ' ').slice(0, 100)
+    || '{source}-{id}';
+}
+
+export function downloadFilename(post, template = '{source}-{id}') {
   let extension = String(post?.extension || '').replace(/^\./, '').toLowerCase();
 
   if (!extension && post?.file) {
@@ -192,5 +216,21 @@ export function downloadFilename(post) {
     extension = post?.type === 'video' ? 'mp4' : 'jpg';
   }
 
-  return `${source}-${id}.${extension}`;
+  const values = {
+    source: post?.source || 'media',
+    id: post?.id || Date.now(),
+    type: post?.type || 'image',
+    width: Number(post?.width) || 0,
+    height: Number(post?.height) || 0
+  };
+  const baseName = normalizeDownloadNameTemplate(template)
+    .replace(/\{(source|id|type|width|height)\}/g, (_, key) => String(values[key]))
+    .replace(/\{[^{}]+\}/g, '')
+    .replace(/[\u0000-\u001f\u007f<>:"/\\|?*]/g, '-')
+    .replace(/\s+/g, ' ')
+    .replace(/[-. ]+$/g, '')
+    .slice(0, 160)
+    || 'media';
+
+  return `${baseName}.${extension}`;
 }

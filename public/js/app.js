@@ -7,6 +7,7 @@ import {
 } from './sites.js';
 import {
   downloadFilename,
+  matchesBlockedTags,
   matchesDimension,
   matchesSmartCollection,
   mediaIdentity,
@@ -78,6 +79,9 @@ const elements = {
   themeControl: document.querySelector('#themeControl'),
   accentOptions: document.querySelector('#accentOptions'),
   proxyTemplate: document.querySelector('#proxyTemplate'),
+  blockedTags: document.querySelector('#blockedTags'),
+  downloadConcurrency: document.querySelector('#downloadConcurrency'),
+  downloadNameTemplate: document.querySelector('#downloadNameTemplate'),
   exportButton: document.querySelector('#exportButton'),
   importButton: document.querySelector('#importButton'),
   importFile: document.querySelector('#importFile'),
@@ -142,7 +146,13 @@ let downloadSequence = 0;
 const selectedDownloads = new Set();
 let downloadQueue = state.downloadQueue;
 const downloadControllers = new Map();
-const sourceHealth = Object.fromEntries(Object.keys(SOURCES).map(sourceId => [sourceId, 'checking']));
+const sourceHealth = Object.fromEntries(Object.keys(SOURCES).map(sourceId => [sourceId, {
+  status: 'checking',
+  httpStatus: 0,
+  latencyMs: 0,
+  error: '',
+  checkedAt: 0
+}]));
 const lastRequestAt = new Map();
 const RESPONSE_CACHE_PREFIX = 'atlas-gallery-response:';
 const RESPONSE_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -272,23 +282,33 @@ function renderSources() {
 
   const mediaName = state.mediaType === 'video' ? '视频' : '图片';
   elements.sourceCount.textContent = `${visibleSources.length} 个${mediaName}站点`;
-  elements.sourceList.innerHTML = visibleSources.map(([sourceId, source]) => `
+  elements.sourceList.innerHTML = visibleSources.map(([sourceId, source]) => {
+    const health = sourceHealth[sourceId];
+    const healthTitle = health.status === 'online'
+      ? `在线 · ${health.latencyMs} ms · HTTP ${health.httpStatus}`
+      : health.status === 'error'
+        ? `不可用${health.httpStatus ? ` · HTTP ${health.httpStatus}` : ''}${health.error ? ` · ${health.error}` : ''}`
+        : '正在检测站点状态';
+
+    return `
     <button
       class="source-chip ${sourceId === state.source ? 'is-selected' : ''}"
       type="button"
       data-source="${sourceId}"
-      title="${escapeHtml(source.description)}"
+      title="${escapeHtml(`${source.description} · ${healthTitle}`)}"
       role="radio"
       aria-checked="${sourceId === state.source}"
     >
-      <span class="source-health is-${sourceHealth[sourceId]}" aria-hidden="true"></span>
+      <span class="source-health is-${health.status}" aria-hidden="true"></span>
       <span class="source-monogram" aria-hidden="true">${escapeHtml(source.shortName.slice(0, 1).toUpperCase())}</span>
       <span class="source-name">${escapeHtml(source.shortName)}</span>
+      ${health.status === 'online' ? `<span class="source-latency">${health.latencyMs} ms</span>` : ''}
       <span class="source-capability" title="支持${mediaName}">
         ${icon(state.mediaType)}
       </span>
     </button>
-  `).join('');
+  `;
+  }).join('');
 }
 
 function renderRecentSearches() {
@@ -517,6 +537,9 @@ function renderControls() {
   elements.anchorDate.value = state.anchorDate;
   elements.anchorDate.max = formatDate(new Date());
   elements.proxyTemplate.value = state.settings.proxyTemplate;
+  elements.blockedTags.value = state.settings.blockedTags;
+  elements.downloadConcurrency.value = state.settings.downloadConcurrency;
+  elements.downloadNameTemplate.value = state.settings.downloadNameTemplate;
   elements.dimensionFilter.value = state.dimensionFilter;
   elements.favoriteCount.textContent = Object.keys(state.favorites).length;
 
@@ -601,6 +624,15 @@ function postCard(post, index) {
   const width = Number(post.width) || 4;
   const height = Number(post.height) || 3;
   const aspectRatio = Math.min(3, Math.max(0.4, width / height));
+  const videoThumbnail = post.type === 'video' && /\.(?:mp4|webm)(?:[?#]|$)/i.test(preview);
+  const mediaElement = videoThumbnail
+    ? `<video data-src="${escapeHtml(preview)}" muted loop playsinline preload="none" aria-label="${escapeHtml(post.tags?.slice(0, 6).join(', ') || `帖子 ${post.id}`)}"></video>`
+    : `<img
+          data-src="${escapeHtml(preview)}"
+          alt="${escapeHtml(post.tags?.slice(0, 6).join(', ') || `帖子 ${post.id}`)}"
+          loading="lazy"
+          decoding="async"
+        >`;
 
   return `
     <article
@@ -612,12 +644,7 @@ function postCard(post, index) {
         <input type="checkbox" data-select-download="${index}" ${selectedDownloads.has(favoriteKey(post)) ? 'checked' : ''}>
       </label>
       <button class="media-button" type="button" data-open-preview="${index}" aria-label="预览帖子 ${escapeHtml(post.id)}">
-        <img
-          data-src="${escapeHtml(preview)}"
-          alt="${escapeHtml(post.tags?.slice(0, 6).join(', ') || `帖子 ${post.id}`)}"
-          loading="lazy"
-          decoding="async"
-        >
+        ${mediaElement}
         <span class="media-badge">${icon(post.type)}${mediaName}</span>
         <span class="rating-badge">${ratingName(post.rating)}</span>
         ${hasNotes ? `<span class="note-badge" title="包含收藏备注">${icon('bookmark')}</span>` : ''}
@@ -647,16 +674,20 @@ function observeLazyMedia() {
         return;
       }
 
-      const image = entry.target;
-      image.addEventListener('load', () => image.classList.add('is-loaded'), { once: true });
-      image.addEventListener('error', () => image.classList.add('is-loaded'), { once: true });
-      image.src = image.dataset.src;
-      image.removeAttribute('data-src');
-      lazyMediaObserver.unobserve(image);
+      const media = entry.target;
+      const loadedEvent = media instanceof HTMLVideoElement ? 'loadeddata' : 'load';
+      media.addEventListener(loadedEvent, () => media.classList.add('is-loaded'), { once: true });
+      media.addEventListener('error', () => media.classList.add('is-loaded'), { once: true });
+      media.src = media.dataset.src;
+      media.removeAttribute('data-src');
+      if (media instanceof HTMLVideoElement) {
+        media.load();
+      }
+      lazyMediaObserver.unobserve(media);
     });
   }, { rootMargin: '600px 0px' });
 
-  elements.gallery.querySelectorAll('img[data-src]').forEach(image => lazyMediaObserver.observe(image));
+  elements.gallery.querySelectorAll('[data-src]').forEach(media => lazyMediaObserver.observe(media));
 }
 
 function renderBatchToolbar() {
@@ -819,7 +850,8 @@ function filterPosts(rows) {
     return post.preview
       && post.file
       && post.type === state.mediaType
-      && state.ratings.includes(post.rating);
+      && state.ratings.includes(post.rating)
+      && !matchesBlockedTags(post, state.settings.blockedTags);
   });
 }
 
@@ -990,9 +1022,9 @@ async function recordHistory(post) {
   await persistLibrary();
 }
 
-async function downloadPost(post, { quiet = false, signal } = {}) {
-  const filename = downloadFilename(post);
-  const url = `/api/download?url=${encodeURIComponent(post.file)}&filename=${encodeURIComponent(filename)}`;
+async function downloadPost(post, { quiet = false, signal, filename } = {}) {
+  const resolvedFilename = filename || downloadFilename(post, state.settings.downloadNameTemplate);
+  const url = `/api/download?url=${encodeURIComponent(post.file)}&filename=${encodeURIComponent(resolvedFilename)}`;
   const response = await fetch(url, { credentials: 'same-origin', signal });
 
   if (!response.ok) {
@@ -1008,14 +1040,14 @@ async function downloadPost(post, { quiet = false, signal } = {}) {
   const blobUrl = URL.createObjectURL(await response.blob());
   const link = document.createElement('a');
   link.href = blobUrl;
-  link.download = filename;
+  link.download = resolvedFilename;
   document.body.append(link);
   link.click();
   link.remove();
   setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
 
   if (!quiet) {
-    showToast(`已下载 ${filename}`);
+    showToast(`已下载 ${resolvedFilename}`);
   }
 }
 
@@ -1074,7 +1106,11 @@ async function runDownloadItem(item) {
   renderDownloadQueue();
 
   try {
-    await downloadPost(item.post, { quiet: true, signal: controller.signal });
+    await downloadPost(item.post, {
+      quiet: true,
+      signal: controller.signal,
+      filename: item.filename
+    });
     item.status = 'done';
   } catch (error) {
     item.status = error.name === 'AbortError' ? 'cancelled' : 'error';
@@ -1092,7 +1128,9 @@ async function processDownloadQueue() {
 
   downloadWorkerActive = true;
   while (downloadQueue.some(item => item.status === 'pending')) {
-    const batch = downloadQueue.filter(item => item.status === 'pending').slice(0, 2);
+    const batch = downloadQueue
+      .filter(item => item.status === 'pending')
+      .slice(0, state.settings.downloadConcurrency);
     await Promise.all(batch.map(runDownloadItem));
   }
   downloadWorkerActive = false;
@@ -1114,7 +1152,7 @@ function downloadPosts(rows) {
       downloadQueue.push({
         id: String(++downloadSequence),
         post,
-        filename: downloadFilename(post),
+        filename: downloadFilename(post, state.settings.downloadNameTemplate),
         status: 'pending',
         error: ''
       });
@@ -1478,16 +1516,35 @@ function updateNetworkStatus() {
 }
 
 async function checkSourceHealth(sourceId) {
-  sourceHealth[sourceId] = 'checking';
+  sourceHealth[sourceId] = {
+    status: 'checking',
+    httpStatus: 0,
+    latencyMs: 0,
+    error: '',
+    checkedAt: Date.now()
+  };
   renderSources();
 
   try {
     const response = await fetch(`/api/site-health?source=${encodeURIComponent(sourceId)}`, {
       credentials: 'same-origin'
     });
-    sourceHealth[sourceId] = response.ok ? 'online' : 'error';
-  } catch {
-    sourceHealth[sourceId] = 'error';
+    const payload = await response.json().catch(() => ({}));
+    sourceHealth[sourceId] = {
+      status: response.ok && payload.ok ? 'online' : 'error',
+      httpStatus: Number(payload.status) || response.status,
+      latencyMs: Math.max(0, Number(payload.latencyMs) || 0),
+      error: payload.error || '',
+      checkedAt: Date.now()
+    };
+  } catch (error) {
+    sourceHealth[sourceId] = {
+      status: 'error',
+      httpStatus: 0,
+      latencyMs: 0,
+      error: error.message,
+      checkedAt: Date.now()
+    };
   }
   renderSources();
 }
@@ -1531,7 +1588,7 @@ function registerEvents() {
 
     if (button.dataset.source) {
       changeSource(button.dataset.source);
-      if (sourceHealth[button.dataset.source] === 'error') {
+      if (sourceHealth[button.dataset.source].status === 'error') {
         checkSourceHealth(button.dataset.source);
       }
     }
@@ -1782,6 +1839,26 @@ function registerEvents() {
     }
     state.settings.proxyTemplate = value;
     persist();
+  });
+  elements.blockedTags.addEventListener('change', () => {
+    state.settings.blockedTags = elements.blockedTags.value.trim();
+    renderControls();
+    state.view === 'popular' ? fetchPosts({ reset: true }) : renderGallery();
+  });
+  elements.downloadConcurrency.addEventListener('change', () => {
+    state.settings.downloadConcurrency = Math.min(
+      4,
+      Math.max(1, Math.round(Number(elements.downloadConcurrency.value) || 2))
+    );
+    renderControls();
+    processDownloadQueue();
+  });
+  elements.downloadNameTemplate.addEventListener('change', () => {
+    state.settings.downloadNameTemplate = elements.downloadNameTemplate.value.trim()
+      .replace(/[\r\n]+/g, ' ')
+      .slice(0, 100)
+      || '{source}-{id}';
+    renderControls();
   });
 
   elements.exportButton.addEventListener('click', exportData);

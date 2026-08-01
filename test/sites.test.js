@@ -11,7 +11,7 @@ test('site adapters build allowlisted API URLs', async () => {
     endDate: '2026-07-26'
   });
 
-  assert.equal(Object.keys(SOURCES).length, 19);
+  assert.equal(Object.keys(SOURCES).length, 22);
   assert.equal(new URL(SOURCES.yandere.buildUrl(query)).hostname, 'yande.re');
   assert.equal(new URL(SOURCES.konachan.buildUrl(query)).pathname, '/post.json');
   assert.equal(new URL(SOURCES.konachanNet.buildUrl(query)).hostname, 'konachan.net');
@@ -28,6 +28,9 @@ test('site adapters build allowlisted API URLs', async () => {
   assert.equal(new URL(SOURCES.aibooru.buildUrl(query)).hostname, 'aibooru.online');
   assert.equal(new URL(SOURCES.sakugabooru.buildUrl(query)).hostname, 'sakugabooru.com');
   assert.equal(new URL(SOURCES.derpibooru.buildUrl(query)).pathname, '/api/v1/json/search/images');
+  assert.equal(new URL(SOURCES.furbooru.buildUrl(query)).hostname, 'furbooru.org');
+  assert.equal(new URL(SOURCES.manebooru.buildUrl(query)).hostname, 'manebooru.art');
+  assert.equal(new URL(SOURCES.twibooru.buildUrl(query)).pathname, '/api/v3/search/posts');
   assert.equal(new URL(SOURCES.wallhaven.buildUrl(query)).hostname, 'wallhaven.cc');
   assert.equal(SOURCES.yandere.capabilities.image, true);
   assert.equal(SOURCES.yandere.capabilities.video, false);
@@ -75,6 +78,8 @@ test('new adapters normalize image and video payloads', async () => {
 
   assert.match(SOURCES.aibooru.buildUrl(videoQuery).searchParams.get('tags'), /filetype:mp4,webm/);
   assert.match(SOURCES.derpibooru.buildUrl(videoQuery).searchParams.get('q'), /format:webm/);
+  assert.match(SOURCES.furbooru.buildUrl(videoQuery).searchParams.get('q'), /format:webm/);
+  assert.match(SOURCES.twibooru.buildUrl(videoQuery).searchParams.get('q'), /webm/);
   assert.equal(SOURCES.wallhaven.buildUrl(imageQuery).searchParams.get('purity'), '100');
 
   const [aibooruPost] = SOURCES.aibooru.parse([{
@@ -110,6 +115,25 @@ test('new adapters normalize image and video payloads', async () => {
   });
   assert.equal(derpibooruPost.type, 'video');
   assert.equal(derpibooruPost.rating, 'safe');
+
+  const [twibooruPost] = SOURCES.twibooru.parse({
+    posts: [{
+      id: 45,
+      score: 81,
+      created_at: '2026-08-01T00:00:00Z',
+      width: 1280,
+      height: 720,
+      tags: ['safe', 'animated', 'webm'],
+      format: 'webm',
+      representations: {
+        thumb: 'https://cdn.twibooru.org/img/45/thumb.webm',
+        large: 'https://cdn.twibooru.org/img/45/large.webm',
+        full: 'https://cdn.twibooru.org/img/45/full.webm'
+      }
+    }]
+  });
+  assert.equal(twibooruPost.type, 'video');
+  assert.equal(twibooruPost.postUrl, 'https://twibooru.org/posts/45');
 
   const [wallhavenPost] = SOURCES.wallhaven.parse({
     data: [{

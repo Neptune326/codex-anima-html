@@ -528,6 +528,12 @@ button:active:not(:disabled) {
   line-height: 1;
 }
 
+.source-latency {
+  color: var(--on-surface-variant);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
 .source-capability {
   display: inline-grid;
   width: 22px;
@@ -995,7 +1001,8 @@ button:active:not(:disabled) {
   aspect-ratio: 4 / 3;
 }
 
-.media-button img {
+.media-button img,
+.media-button video {
   display: block;
   width: 100%;
   height: 100%;
@@ -1004,21 +1011,26 @@ button:active:not(:disabled) {
   transition: filter var(--motion-duration), opacity var(--motion-duration), transform var(--motion-duration);
 }
 
-.media-button img.is-loaded {
+.media-button img.is-loaded,
+.media-button video.is-loaded {
   opacity: 1;
 }
 
-.media-card:hover .media-button img {
+.media-card:hover .media-button img,
+.media-card:hover .media-button video {
   transform: scale(1.025);
 }
 
-.media-card.is-sensitive .media-button img {
+.media-card.is-sensitive .media-button img,
+.media-card.is-sensitive .media-button video {
   filter: blur(18px);
   transform: scale(1.08);
 }
 
 .media-card.is-sensitive .media-button:hover img,
-.media-card.is-sensitive .media-button:focus-visible img {
+.media-card.is-sensitive .media-button:focus-visible img,
+.media-card.is-sensitive .media-button:hover video,
+.media-card.is-sensitive .media-button:focus-visible video {
   filter: blur(0);
 }
 
@@ -1468,6 +1480,13 @@ button:active:not(:disabled) {
 .text-field {
   display: grid;
   gap: 6px;
+}
+
+.settings-field-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr);
+  gap: 14px;
+  margin-top: 18px;
 }
 
 .text-field > span {
@@ -2376,6 +2395,10 @@ dialog::backdrop {
 
   .drawer-panel {
     padding: 18px max(18px, env(safe-area-inset-right)) calc(30px + env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+  }
+
+  .settings-field-grid {
+    grid-template-columns: 1fr;
   }
 
   .saved-search-dialog,

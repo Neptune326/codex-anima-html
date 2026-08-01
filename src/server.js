@@ -31,6 +31,9 @@ const SITE_HEALTH_TARGETS = Object.freeze({
   aibooru: 'https://aibooru.online/posts.json?limit=1',
   sakugabooru: 'https://sakugabooru.com/post.json?limit=1',
   derpibooru: 'https://derpibooru.org/api/v1/json/search/images?q=safe&per_page=1',
+  furbooru: 'https://furbooru.org/api/v1/json/search/images?q=safe&per_page=1',
+  manebooru: 'https://manebooru.art/api/v1/json/search/images?q=safe&per_page=1',
+  twibooru: 'https://twibooru.org/api/v3/search/posts?q=safe&per_page=1',
   wallhaven: 'https://wallhaven.cc/api/v1/search?purity=100&page=1'
 });
 
@@ -61,6 +64,9 @@ const ALLOWED_HOSTS = new Set([
   'aibooru.online',
   'sakugabooru.com',
   'derpibooru.org',
+  'furbooru.org',
+  'manebooru.art',
+  'twibooru.org',
   'wallhaven.cc'
 ]);
 
@@ -85,6 +91,10 @@ const MEDIA_HOST_SUFFIXES = [
   'sakugabooru.com',
   'derpibooru.org',
   'derpicdn.net',
+  'furbooru.org',
+  'furrycdn.org',
+  'manebooru.art',
+  'twibooru.org',
   'wallhaven.cc'
 ];
 
@@ -443,7 +453,7 @@ function serveStatic(publicDirectory, pathname, response, method) {
       "media-src 'self' https: blob:",
       "connect-src 'self'",
       "script-src 'self'",
-      "style-src 'self'",
+      "style-src 'self' 'unsafe-inline'",
       "object-src 'none'",
       "base-uri 'self'",
       "frame-ancestors 'none'"

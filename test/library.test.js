@@ -47,6 +47,31 @@ test('download filenames use normalized source, id and extension', async () => {
     type: 'video',
     file: 'https://static1.e621.net/data/sample.webm?x=1'
   }), 'e621-7.webm');
+  assert.equal(downloadFilename({
+    source: 'twibooru',
+    id: '8/9',
+    type: 'video',
+    width: 1920,
+    height: 1080,
+    extension: 'webm'
+  }, '{source}_{type}_{width}x{height}_{id}'), 'twibooru_video_1920x1080_8-9.webm');
+  assert.equal(downloadFilename({ id: '10' }, '../{id}:{unknown}'), '..-10.jpg');
+});
+
+test('tag blacklist matches normalized tags and download settings are bounded', async () => {
+  const {
+    matchesBlockedTags,
+    normalizeDownloadConcurrency,
+    normalizeDownloadNameTemplate
+  } = await import('../public/js/library.js');
+
+  assert.equal(matchesBlockedTags({ tags: ['Blue Hair', 'night_sky'] }, 'blue_hair'), true);
+  assert.equal(matchesBlockedTags({ tags: ['landscape', 'night_sky'] }, 'text watermark'), false);
+  assert.equal(normalizeDownloadConcurrency(0), 2);
+  assert.equal(normalizeDownloadConcurrency(9), 4);
+  assert.equal(normalizeDownloadConcurrency(1.4), 1);
+  assert.equal(normalizeDownloadNameTemplate(''), '{source}-{id}');
+  assert.equal(normalizeDownloadNameTemplate('  {source}\n{id}  '), '{source} {id}');
 });
 
 test('dimension filters and media identities are deterministic', async () => {

@@ -1,6 +1,6 @@
 # Atlas Gallery 使用与 Linux 部署手册
 
-本文档适用于 Atlas Gallery `2.6.0`。示例服务器使用 Ubuntu `22.04/24.04` 或 Debian `12`，部署目录为 `/opt/codex-anima-html`，Node 服务监听 `127.0.0.1:4173`，Nginx 对外提供网页和 HTTPS。
+本文档适用于 Atlas Gallery `2.7.0`。示例服务器使用 Ubuntu `22.04/24.04` 或 Debian `12`，部署目录为 `/opt/codex-anima-html`，Node 服务监听 `127.0.0.1:4173`，Nginx 对外提供网页和 HTTPS。
 
 ## 1. 部署结构
 
@@ -131,7 +131,7 @@ curl --fail http://127.0.0.1:4173/api/health
 健康检查应返回类似内容：
 
 ```json
-{"ok":true,"version":"2.6.0","proxyMode":"direct"}
+{"ok":true,"version":"2.7.0","proxyMode":"direct"}
 ```
 
 `proxyMode` 的值：
@@ -252,6 +252,7 @@ https://gallery.example.com/
 5. 点击媒体卡片打开预览。视频默认静音自动播放，可在全局设置中修改。
 6. 使用卡片按钮收藏或下载；收藏页支持批量选择和下载。
 7. 在全局设置中导出 JSON，可备份收藏、历史、搜索集和智能收藏夹。
+8. 在“过滤与下载”中可设置标签黑名单、`1-4` 个下载并发和文件名模板。
 
 浏览器会按协议、域名和端口隔离本地数据。由 HTTP 切换到 HTTPS 后，原 HTTP 地址中的收藏不会自动出现，需要先导出再导入。
 

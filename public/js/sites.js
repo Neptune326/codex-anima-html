@@ -368,6 +368,55 @@ function parseDerpibooru(payload) {
   }));
 }
 
+function buildPhilomenaUrl(baseUrl, query, apiPath = '/api/v1/json/search/images') {
+  const mediaFilter = query.mediaType === 'video' ? 'format:webm' : '-format:webm';
+  const search = joinTags(query, [mediaFilter]).replace(/\s+/g, ',');
+
+  return addSearchParams(new URL(apiPath, baseUrl), {
+    q: search,
+    page: query.page,
+    per_page: PAGE_SIZE,
+    sf: 'score',
+    sd: 'desc'
+  });
+}
+
+function parsePhilomena(sourceId, payload, collectionKey = 'images', postPath = 'images') {
+  const posts = Array.isArray(payload?.[collectionKey]) ? payload[collectionKey] : [];
+
+  return posts.map(post => normalizePost(sourceId, {
+    id: post.id,
+    score: post.score,
+    rating: Array.isArray(post.tags) && post.tags.includes('explicit')
+      ? 'explicit'
+      : Array.isArray(post.tags) && post.tags.some(tag => ['suggestive', 'questionable'].includes(tag))
+        ? 'questionable'
+        : 'safe',
+    createdAt: post.created_at,
+    width: post.width,
+    height: post.height,
+    tags: post.tags,
+    preview: post.representations?.thumb || post.representations?.small,
+    sample: post.representations?.large || post.representations?.medium,
+    file: post.representations?.full || post.view_url,
+    postUrl: `${SOURCES[sourceId].home}${postPath}/${post.id}`,
+    extension: post.format
+  }));
+}
+
+function buildTwibooruUrl(query) {
+  const mediaFilter = query.mediaType === 'video' ? 'webm' : '-webm';
+  const search = joinTags(query, [mediaFilter]).replace(/\s+/g, ',');
+
+  return addSearchParams(new URL('https://twibooru.org/api/v3/search/posts'), {
+    q: search,
+    page: query.page,
+    per_page: PAGE_SIZE,
+    sf: 'score',
+    sd: 'desc'
+  });
+}
+
 function buildWallhavenUrl(query) {
   return addSearchParams(new URL('https://wallhaven.cc/api/v1/search'), {
     q: joinTags(query),
@@ -713,6 +762,43 @@ export const SOURCES = {
     capabilities: { image: true, date: false, video: true },
     buildUrl: buildDerpibooruUrl,
     parse: parseDerpibooru
+  },
+  furbooru: {
+    name: 'Furbooru',
+    shortName: 'Furbooru',
+    home: 'https://furbooru.org/',
+    description: '公开插画、GIF 与 WebM 标签图库',
+    capabilities: { image: true, date: false, video: true },
+    buildUrl(query) {
+      return buildPhilomenaUrl('https://furbooru.org/', query);
+    },
+    parse(payload) {
+      return parsePhilomena('furbooru', payload);
+    }
+  },
+  manebooru: {
+    name: 'Manebooru',
+    shortName: 'Manebooru',
+    home: 'https://manebooru.art/',
+    description: '公开插画、动画与标签媒体图库',
+    capabilities: { image: true, date: false, video: true },
+    buildUrl(query) {
+      return buildPhilomenaUrl('https://manebooru.art/', query);
+    },
+    parse(payload) {
+      return parsePhilomena('manebooru', payload);
+    }
+  },
+  twibooru: {
+    name: 'Twibooru',
+    shortName: 'Twibooru',
+    home: 'https://twibooru.org/',
+    description: '公开图片与 WebM 动画标签图库',
+    capabilities: { image: true, date: false, video: true },
+    buildUrl: buildTwibooruUrl,
+    parse(payload) {
+      return parsePhilomena('twibooru', payload, 'posts', 'posts');
+    }
   },
   wallhaven: {
     name: 'Wallhaven',

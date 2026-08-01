@@ -109,13 +109,22 @@ test('server serves health and static resources without hanging sockets', async 
     assert.equal(health.status, 200);
     assert.deepEqual(JSON.parse(health.body), {
       ok: true,
-      version: '2.6.0',
+      version: '2.7.0',
       proxyMode: app.proxyMode
     });
 
     const page = await request(server, '/');
     assert.equal(page.status, 200);
     assert.match(page.headers['content-type'], /text\/html/);
+    assert.match(
+      page.headers['content-security-policy'],
+      /style-src 'self' 'unsafe-inline'/
+    );
+    assert.match(page.headers['content-security-policy'], /script-src 'self'/);
+    assert.doesNotMatch(
+      page.headers['content-security-policy'],
+      /script-src[^;]*'unsafe-inline'/
+    );
     assert.match(page.body, /Atlas Gallery/);
 
     const module = await request(server, '/js/app.js', 'HEAD');
@@ -172,6 +181,18 @@ test('new source APIs and media CDN hosts are allowlisted explicitly', () => {
     'wallhaven.cc'
   );
   assert.equal(
+    validateTarget('https://furbooru.org/api/v1/json/search/images').hostname,
+    'furbooru.org'
+  );
+  assert.equal(
+    validateTarget('https://manebooru.art/api/v1/json/search/images').hostname,
+    'manebooru.art'
+  );
+  assert.equal(
+    validateTarget('https://twibooru.org/api/v3/search/posts').hostname,
+    'twibooru.org'
+  );
+  assert.equal(
     validateDownloadTarget('https://cdn.aibooru.download/file/sample.webp').hostname,
     'cdn.aibooru.download'
   );
@@ -194,6 +215,18 @@ test('new source APIs and media CDN hosts are allowlisted explicitly', () => {
   assert.equal(
     validateDownloadTarget('https://tbib.org/images/1/sample.jpg').hostname,
     'tbib.org'
+  );
+  assert.equal(
+    validateDownloadTarget('https://furrycdn.org/img/view/sample.webp').hostname,
+    'furrycdn.org'
+  );
+  assert.equal(
+    validateDownloadTarget('https://static.manebooru.art/img/view/sample.jpg').hostname,
+    'static.manebooru.art'
+  );
+  assert.equal(
+    validateDownloadTarget('https://cdn.twibooru.org/img/sample.webm').hostname,
+    'cdn.twibooru.org'
   );
 });
 

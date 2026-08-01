@@ -1,3 +1,8 @@
+import {
+  normalizeDownloadConcurrency,
+  normalizeDownloadNameTemplate
+} from './library.js';
+
 const STORAGE_KEY = 'atlas-gallery-v2';
 const LEGACY_STORAGE_KEY = 'atlas-gallery';
 const FALLBACK_LIBRARY_KEY = 'atlas-gallery-library-fallback';
@@ -26,6 +31,9 @@ export const DEFAULT_STATE = {
     compactGrid: false,
     galleryLayout: 'grid',
     reduceMotion: false,
+    blockedTags: '',
+    downloadConcurrency: 2,
+    downloadNameTemplate: '{source}-{id}',
     proxyTemplate: ''
   },
   favorites: {},
@@ -58,6 +66,9 @@ function normalizeSettings(settings = {}) {
       ? settings.galleryLayout
       : DEFAULT_STATE.settings.galleryLayout,
     compactGrid: settings.compactGrid ?? settings.compact ?? false,
+    blockedTags: String(settings.blockedTags || '').trim(),
+    downloadConcurrency: normalizeDownloadConcurrency(settings.downloadConcurrency),
+    downloadNameTemplate: normalizeDownloadNameTemplate(settings.downloadNameTemplate),
     proxyTemplate: settings.proxyTemplate ?? settings.proxy ?? ''
   };
 }
