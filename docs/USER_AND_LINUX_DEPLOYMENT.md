@@ -222,6 +222,8 @@ server_name gallery.example.com;
 server_name _;
 ```
 
+确认配置使用 `location /api/` 转发整个 API 路径，不要只配置 `/api/proxy` 或 `/api/download`。`2.8.0` 的视频封面与播放依赖 `/api/media`，并通过浏览器的 Range 请求分段读取媒体；项目模板中的 `proxy_buffering off`、`proxy_request_buffering off` 和 `300s` 读写超时应保留。
+
 启用站点并移除 Debian/Ubuntu 的默认页面：
 
 ```bash
@@ -357,6 +359,38 @@ curl --fail http://127.0.0.1/api/health
 
 若本次更新修改了 `deploy/atlas-gallery.service` 或 Nginx 模板，需要重新复制对应文件，再执行 `systemctl daemon-reload` 或 `nginx -t`。
 
+### 从 2.7.x 升级到 2.8.0
+
+`2.8.0` 新增 `/api/media` 服务端路由。拉取代码后必须重启 Node 服务，否则前端会请求到旧进程并返回 `404`；现有 Nginx 已使用 `location /api/` 时，无需为该路由单独增加配置。
+
+```bash
+cd /opt/codex-anima-html
+sudo -u atlas-gallery git pull --ff-only origin main
+npm run check
+npm test
+sudo systemctl restart atlas-gallery
+curl --fail http://127.0.0.1:4173/api/health
+```
+
+健康检查中的 `version` 应为 `2.8.0`，`proxyMode` 在未配置代理时为 `direct`，配置 `UPSTREAM_PROXY` 后为 `configured`：
+
+```json
+{"ok":true,"version":"2.8.0","proxyMode":"direct"}
+```
+
+使用任意一个浏览器开发者工具中已确认可播放的真实视频地址验证 Range 转发：
+
+```bash
+MEDIA_URL='https://example.com/path/video.mp4'
+curl -sS -D - -o /dev/null \
+  -H 'Range: bytes=0-65535' \
+  --get \
+  --data-urlencode "url=${MEDIA_URL}" \
+  http://127.0.0.1:4173/api/media
+```
+
+正常响应应包含 `HTTP/1.1 206 Partial Content`、`Content-Range` 和正确的 `Content-Type: video/*`。示例地址必须替换为页面实际返回的媒体地址；`example.com` 仅表示命令格式。
+
 ## 12. 备份与迁移
 
 服务器侧只需备份配置：
@@ -389,6 +423,15 @@ sudo journalctl -u atlas-gallery -f
 ```
 
 `/api/health` 只确认服务运行，`/api/site-health` 才会实际访问目标站点。直连模式失败时，按 5.2 节设置 `UPSTREAM_PROXY`；代理模式失败时，先使用 `curl --proxy` 检查代理地址和端口，再检查代理规则、DNS 与服务器防火墙。
+
+页面和图片正常，但视频封面或播放返回 `401/403`：
+
+```bash
+sudo journalctl -u atlas-gallery -n 100 --no-pager
+sudo nginx -T | grep -A 15 'location /api/'
+```
+
+确认浏览器请求的是本站 `/api/media?url=...`，Nginx 将整个 `/api/` 转发到 `127.0.0.1:4173`，并按上一节的命令检查媒体响应是否为 `206 Partial Content`。若 `/api/media` 日志显示上游连接失败，国外服务器先测试目标站点直连，国内服务器按 5.2 节配置服务器本机可达的 `UPSTREAM_PROXY`；不要把第三方视频地址直接写入 Nginx 代理规则。
 
 Nginx 返回 `403 Forbidden`：
 
