@@ -26,7 +26,7 @@ test('site adapters build allowlisted API URLs', async () => {
   assert.equal(new URL(SOURCES.e926.buildUrl(query)).hostname, 'e926.net');
   assert.equal(new URL(SOURCES.e6ai.buildUrl(query)).hostname, 'e6ai.net');
   assert.equal(new URL(SOURCES.aibooru.buildUrl(query)).hostname, 'aibooru.online');
-  assert.equal(new URL(SOURCES.sakugabooru.buildUrl(query)).hostname, 'sakugabooru.com');
+  assert.equal(new URL(SOURCES.sakugabooru.buildUrl(query)).hostname, 'www.sakugabooru.com');
   assert.equal(new URL(SOURCES.derpibooru.buildUrl(query)).pathname, '/api/v1/json/search/images');
   assert.equal(new URL(SOURCES.furbooru.buildUrl(query)).hostname, 'furbooru.org');
   assert.equal(new URL(SOURCES.manebooru.buildUrl(query)).hostname, 'manebooru.art');
@@ -37,6 +37,13 @@ test('site adapters build allowlisted API URLs', async () => {
   assert.equal(SOURCES.konachan.capabilities.video, false);
   assert.equal(SOURCES.xbooru.capabilities.video, true);
   assert.equal(SOURCES.tbib.capabilities.video, false);
+  assert.equal(SOURCES.gelbooru.capabilities.video, false);
+  assert.equal(SOURCES.sankaku.capabilities.video, false);
+  assert.equal(SOURCES.rule34.capabilities.video, false);
+  assert.equal(SOURCES.e926.capabilities.video, false);
+  assert.equal(SOURCES.derpibooru.capabilities.video, false);
+  assert.equal(SOURCES.furbooru.capabilities.video, false);
+  assert.equal(SOURCES.manebooru.capabilities.video, false);
 });
 
 test('site adapters build and parse remote tag suggestions', async () => {
@@ -53,7 +60,7 @@ test('site adapters build and parse remote tag suggestions', async () => {
   );
   assert.equal(new URL(SOURCES.e621.buildTagUrl('blue')).hostname, 'e621.net');
   assert.equal(new URL(SOURCES.aibooru.buildTagUrl('blue')).hostname, 'aibooru.online');
-  assert.equal(new URL(SOURCES.sakugabooru.buildTagUrl('blue')).hostname, 'sakugabooru.com');
+  assert.equal(new URL(SOURCES.sakugabooru.buildTagUrl('blue')).hostname, 'www.sakugabooru.com');
   assert.equal(new URL(SOURCES.konachanNet.buildTagUrl('blue')).hostname, 'konachan.net');
   assert.equal(new URL(SOURCES.lolibooru.buildTagUrl('blue')).hostname, 'lolibooru.moe');
   assert.equal(new URL(SOURCES.xbooru.buildTagUrl('blue')).hostname, 'xbooru.com');
@@ -76,10 +83,19 @@ test('new adapters normalize image and video payloads', async () => {
   const videoQuery = createQuery({ page: 3, mediaType: 'video', tags: 'animated' });
   const imageQuery = createQuery({ page: 1, mediaType: 'image', tags: 'landscape -text' });
 
-  assert.match(SOURCES.aibooru.buildUrl(videoQuery).searchParams.get('tags'), /filetype:mp4,webm/);
-  assert.match(SOURCES.derpibooru.buildUrl(videoQuery).searchParams.get('q'), /format:webm/);
-  assert.match(SOURCES.furbooru.buildUrl(videoQuery).searchParams.get('q'), /format:webm/);
+  assert.match(SOURCES.aibooru.buildUrl(videoQuery).searchParams.get('tags'), /filetype:mp4/);
+  assert.match(SOURCES.danbooru.buildUrl(videoQuery).searchParams.get('tags'), /filetype:mp4/);
+  assert.doesNotMatch(
+    SOURCES.danbooru.buildUrl(videoQuery).searchParams.get('tags'),
+    /order:score_desc/
+  );
   assert.match(SOURCES.twibooru.buildUrl(videoQuery).searchParams.get('q'), /webm/);
+  assert.equal(
+    new URL(SOURCES.sakugabooru.buildUrl(videoQuery)).hostname,
+    'www.sakugabooru.com'
+  );
+  assert.match(SOURCES.sakugabooru.buildUrl(videoQuery).searchParams.get('tags'), /animated/);
+  assert.match(SOURCES.sakugabooru.buildUrl(imageQuery).searchParams.get('tags'), /-animated/);
   assert.equal(SOURCES.wallhaven.buildUrl(imageQuery).searchParams.get('purity'), '100');
 
   const [aibooruPost] = SOURCES.aibooru.parse([{

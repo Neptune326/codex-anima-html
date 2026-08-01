@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const http = require('node:http');
+const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
@@ -8,8 +9,11 @@ const test = require('node:test');
 const {
   contentDisposition,
   createAppServer,
+  createTunnelAgent,
+  mediaReferer,
   parseProxy,
   resolveStaticPath,
+  safeRange,
   sanitizeFilename,
   validateDownloadTarget,
   validateTarget
@@ -68,6 +72,32 @@ test('parseProxy validates HTTP proxy addresses', () => {
   assert.throws(() => parseProxy('not-a-url'), /有效/);
 });
 
+test('HTTPS proxy tunnel agent returns the established socket', () => {
+  const socket = new net.Socket();
+  const agent = createTunnelAgent(socket);
+
+  assert.equal(agent.createConnection(), socket);
+  assert.throws(() => agent.createConnection(), /代理隧道已被使用/);
+  socket.destroy();
+});
+
+test('media requests use safe ranges and source-aware referers', () => {
+  assert.equal(safeRange('bytes=0-1023'), 'bytes=0-1023');
+  assert.equal(safeRange('bytes=1024-'), 'bytes=1024-');
+  assert.equal(safeRange('bytes=-1024'), 'bytes=-1024');
+  assert.equal(safeRange('bytes=0-1,4-5'), '');
+  assert.equal(safeRange('items=0-10'), '');
+
+  assert.equal(
+    mediaReferer(new URL('https://cdn.aibooru.download/original/sample.mp4')),
+    'https://aibooru.online/'
+  );
+  assert.equal(
+    mediaReferer(new URL('https://cdn.twibooru.org/img/sample.webm')),
+    'https://twibooru.org/'
+  );
+});
+
 test('download targets and filenames are constrained', () => {
   assert.equal(
     validateDownloadTarget('https://cdn.donmai.us/original/sample.jpg').hostname,
@@ -109,7 +139,7 @@ test('server serves health and static resources without hanging sockets', async 
     assert.equal(health.status, 200);
     assert.deepEqual(JSON.parse(health.body), {
       ok: true,
-      version: '2.7.0',
+      version: '2.8.0',
       proxyMode: app.proxyMode
     });
 
@@ -134,6 +164,9 @@ test('server serves health and static resources without hanging sockets', async 
     const styles = await request(server, '/css/styles.css');
     assert.equal(styles.status, 200);
     assert.match(styles.body, /\[hidden\]\s*\{\s*display:\s*none\s*!important;/);
+    assert.match(styles.body, /\.source-scroller\s*\{[^}]*flex-wrap:\s*wrap;/s);
+    assert.match(styles.body, /\.source-scroller\s*\{[^}]*overflow:\s*visible;/s);
+    assert.doesNotMatch(styles.body, /\.source-scroller\s*\{[^}]*overflow-x:\s*auto;/s);
 
     const missing = await request(server, '/missing-resource');
     assert.equal(missing.status, 404);
@@ -191,6 +224,10 @@ test('new source APIs and media CDN hosts are allowlisted explicitly', () => {
   assert.equal(
     validateTarget('https://twibooru.org/api/v3/search/posts').hostname,
     'twibooru.org'
+  );
+  assert.equal(
+    validateTarget('https://www.sakugabooru.com/post.json').hostname,
+    'www.sakugabooru.com'
   );
   assert.equal(
     validateDownloadTarget('https://cdn.aibooru.download/file/sample.webp').hostname,
@@ -256,7 +293,7 @@ test('site health only probes mapped sources and never accepts arbitrary URLs', 
     const newSource = await request(server, '/api/site-health?source=sakugabooru');
     assert.equal(newSource.status, 200);
     assert.equal(probes[1].source, 'sakugabooru');
-    assert.equal(probes[1].target, 'https://sakugabooru.com/post.json?limit=1');
+    assert.equal(probes[1].target, 'https://www.sakugabooru.com/post.json?limit=1');
 
     const arbitrary = await request(
       server,

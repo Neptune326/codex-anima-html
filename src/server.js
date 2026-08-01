@@ -29,7 +29,7 @@ const SITE_HEALTH_TARGETS = Object.freeze({
   e926: 'https://e926.net/posts.json?limit=1',
   e6ai: 'https://e6ai.net/posts.json?limit=1',
   aibooru: 'https://aibooru.online/posts.json?limit=1',
-  sakugabooru: 'https://sakugabooru.com/post.json?limit=1',
+  sakugabooru: 'https://www.sakugabooru.com/post.json?limit=1',
   derpibooru: 'https://derpibooru.org/api/v1/json/search/images?q=safe&per_page=1',
   furbooru: 'https://furbooru.org/api/v1/json/search/images?q=safe&per_page=1',
   manebooru: 'https://manebooru.art/api/v1/json/search/images?q=safe&per_page=1',
@@ -63,6 +63,7 @@ const ALLOWED_HOSTS = new Set([
   'e6ai.net',
   'aibooru.online',
   'sakugabooru.com',
+  'www.sakugabooru.com',
   'derpibooru.org',
   'furbooru.org',
   'manebooru.art',
@@ -105,6 +106,18 @@ const MIME_TYPES = {
   '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml'
 };
+
+const MEDIA_REFERERS = Object.freeze([
+  ['aibooru.download', 'https://aibooru.online/'],
+  ['donmai.us', 'https://danbooru.donmai.us/'],
+  ['e621.net', 'https://e621.net/'],
+  ['e926.net', 'https://e926.net/'],
+  ['e6ai.net', 'https://e6ai.net/'],
+  ['twibooru.org', 'https://twibooru.org/'],
+  ['xbooru.com', 'https://xbooru.com/'],
+  ['hypnohub.net', 'https://hypnohub.net/'],
+  ['sakugabooru.com', 'https://www.sakugabooru.com/']
+]);
 
 function sendJson(response, status, body, extraHeaders = {}) {
   response.writeHead(status, {
@@ -306,28 +319,146 @@ function openProxyTunnel(proxy, target) {
   });
 }
 
-async function createUpstreamRequest(target, proxyResolver, onResponse) {
+function createTunnelAgent(socket) {
+  const agent = new https.Agent({ keepAlive: false, maxSockets: 1 });
+  let claimed = false;
+
+  agent.createConnection = () => {
+    if (claimed) {
+      throw new Error('代理隧道已被使用');
+    }
+
+    claimed = true;
+    return socket;
+  };
+
+  return agent;
+}
+
+function mediaReferer(target) {
+  const hostname = target.hostname.toLowerCase();
+  const match = MEDIA_REFERERS.find(([suffix]) => {
+    return hostname === suffix || hostname.endsWith(`.${suffix}`);
+  });
+  return match?.[1] || `${target.origin}/`;
+}
+
+function safeRange(value) {
+  return /^bytes=\d*-\d*$/.test(String(value || '')) ? String(value) : '';
+}
+
+async function createUpstreamRequest(target, proxyResolver, onResponse, requestOptions = {}) {
   const proxy = await proxyResolver.resolve();
   const options = {
     hostname: target.hostname,
     port: Number(target.port) || 443,
     path: `${target.pathname}${target.search}`,
-    method: 'GET',
+    method: requestOptions.method || 'GET',
     headers: {
       Accept: 'application/json,text/plain,*/*',
       'Accept-Encoding': 'identity',
       'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.7',
-      'User-Agent': 'AtlasGallery/2.0 (local and self-hosted media browser)'
+      'User-Agent': 'AtlasGallery/2.8 (+https://github.com/Neptune326/codex-anima-html)',
+      ...requestOptions.headers
     }
   };
 
   if (proxy) {
     const socket = await openProxyTunnel(proxy, target);
-    options.agent = false;
-    options.createConnection = () => socket;
+    options.agent = createTunnelAgent(socket);
   }
 
   return https.request(options, onResponse);
+}
+
+function streamMedia(target, proxyResolver, clientRequest, clientResponse, redirects = 0) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = error => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      if (error) {
+        reject(error);
+      } else {
+        resolve();
+      }
+    };
+    const range = safeRange(clientRequest.headers.range);
+    const headers = {
+      Accept: clientRequest.headers.accept || '*/*',
+      Referer: mediaReferer(target)
+    };
+
+    if (range) {
+      headers.Range = range;
+    }
+
+    createUpstreamRequest(target, proxyResolver, upstream => {
+      const status = upstream.statusCode || 502;
+
+      if ([301, 302, 303, 307, 308].includes(status)) {
+        upstream.resume();
+
+        if (redirects >= 5 || !upstream.headers.location) {
+          finish(new Error('媒体地址重定向无效'));
+          return;
+        }
+
+        try {
+          const redirectedTarget = validateDownloadTarget(
+            new URL(upstream.headers.location, target).href
+          );
+          streamMedia(
+            redirectedTarget,
+            proxyResolver,
+            clientRequest,
+            clientResponse,
+            redirects + 1
+          ).then(() => finish(), finish);
+        } catch (error) {
+          finish(error);
+        }
+        return;
+      }
+
+      const responseHeaders = {
+        'Content-Type': upstream.headers['content-type'] || 'application/octet-stream',
+        'Cache-Control': 'public, max-age=86400',
+        'Accept-Ranges': upstream.headers['accept-ranges'] || 'bytes',
+        'Referrer-Policy': 'no-referrer',
+        'X-Content-Type-Options': 'nosniff'
+      };
+
+      ['content-length', 'content-range', 'etag', 'last-modified'].forEach(name => {
+        if (upstream.headers[name]) {
+          responseHeaders[name] = upstream.headers[name];
+        }
+      });
+
+      clientResponse.writeHead(status, responseHeaders);
+      upstream.once('error', error => {
+        clientResponse.destroy(error);
+        finish(error);
+      });
+      upstream.once('end', () => finish());
+      clientResponse.once('close', () => {
+        if (!upstream.complete) {
+          upstream.destroy();
+        }
+        finish();
+      });
+      upstream.pipe(clientResponse);
+    }, { headers }).then(request => {
+      request.setTimeout(REQUEST_TIMEOUT_MS, () => {
+        request.destroy(new Error('媒体请求超时'));
+      });
+      request.once('error', finish);
+      request.end();
+    }, finish);
+  });
 }
 
 function fetchUpstream(
@@ -577,6 +708,26 @@ function createAppServer(options = {}) {
       return;
     }
 
+    if (request.method === 'GET' && requestUrl.pathname === '/api/media') {
+      let target;
+
+      try {
+        target = validateDownloadTarget(requestUrl.searchParams.get('url') || '');
+      } catch (error) {
+        sendJson(response, 400, { error: error.message });
+        return;
+      }
+
+      try {
+        await streamMedia(target, proxyResolver, request, response);
+      } catch (error) {
+        if (!response.headersSent) {
+          sendJson(response, 502, { error: error.message });
+        }
+      }
+      return;
+    }
+
     if (request.method === 'GET' && requestUrl.pathname === '/api/health') {
       sendJson(response, 200, {
         ok: true,
@@ -663,8 +814,11 @@ module.exports = {
   SITE_HEALTH_TARGETS,
   contentDisposition,
   createAppServer,
+  createTunnelAgent,
+  mediaReferer,
   parseProxy,
   resolveStaticPath,
+  safeRange,
   sanitizeFilename,
   validateDownloadTarget,
   validateTarget

@@ -302,16 +302,24 @@ function parseTbib(payload) {
   }));
 }
 
-function buildDanbooruUrl(baseUrl, query) {
+function buildDanbooruUrl(baseUrl, query, orderByScore = true) {
   const url = new URL(baseUrl);
   const mediaTag = query.mediaType === 'video'
-    ? 'filetype:mp4,webm'
+    ? 'filetype:mp4'
     : 'filetype:jpg,jpeg,png,gif';
 
   return addSearchParams(url, {
     limit: PAGE_SIZE,
     page: query.page,
-    tags: joinTags(query, ['order:score_desc', mediaTag])
+    tags: joinTags(query, [orderByScore ? 'order:score_desc' : '', mediaTag])
+  });
+}
+
+function buildSakugabooruUrl(query) {
+  return addSearchParams(new URL('https://www.sakugabooru.com/post.json'), {
+    limit: PAGE_SIZE,
+    page: query.page,
+    tags: joinTags(query, [query.mediaType === 'video' ? 'animated' : '-animated'])
   });
 }
 
@@ -521,7 +529,7 @@ export const SOURCES = {
     shortName: 'Gelbooru',
     home: 'https://gelbooru.com/',
     description: '大型标签化媒体图库',
-    capabilities: { image: true, date: false, video: true },
+    capabilities: { image: true, date: false, video: false },
     buildUrl(query) {
       return buildGelbooruUrl('https://gelbooru.com/index.php', query);
     },
@@ -589,7 +597,11 @@ export const SOURCES = {
     description: '标签体系完整的动漫图库',
     capabilities: { image: true, date: false, video: true },
     buildUrl(query) {
-      return buildDanbooruUrl('https://danbooru.donmai.us/posts.json', query);
+      return buildDanbooruUrl(
+        'https://danbooru.donmai.us/posts.json',
+        query,
+        query.mediaType !== 'video'
+      );
     },
     buildTagUrl(query) {
       return buildDanbooruTagUrl('https://danbooru.donmai.us/tags.json', query);
@@ -621,7 +633,7 @@ export const SOURCES = {
     shortName: 'Sankaku',
     home: 'https://chan.sankakucomplex.com/',
     description: 'Sankaku Complex 媒体频道',
-    capabilities: { image: true, date: false, video: true },
+    capabilities: { image: true, date: false, video: false },
     buildUrl(query) {
       const url = new URL('https://capi-v2.sankakucomplex.com/posts');
       return addSearchParams(url, {
@@ -674,7 +686,7 @@ export const SOURCES = {
     shortName: 'Rule34',
     home: 'https://rule34.xxx/',
     description: '标签化图片与视频图库',
-    capabilities: { image: true, date: false, video: true },
+    capabilities: { image: true, date: false, video: false },
     buildUrl(query) {
       return buildGelbooruUrl('https://api.rule34.xxx/index.php', query);
     },
@@ -708,7 +720,7 @@ export const SOURCES = {
     shortName: 'e926',
     home: 'https://e926.net/',
     description: 'e621 的全年龄内容镜像',
-    capabilities: { image: true, date: false, video: true },
+    capabilities: { image: true, date: false, video: false },
     buildUrl(query) {
       return buildE6Url('https://e926.net/posts.json', query);
     },
@@ -740,14 +752,12 @@ export const SOURCES = {
   sakugabooru: {
     name: 'Sakugabooru',
     shortName: 'Sakuga',
-    home: 'https://sakugabooru.com/',
+    home: 'https://www.sakugabooru.com/',
     description: '动画作画片段与原画媒体库',
     capabilities: { image: true, date: false, video: true },
-    buildUrl(query) {
-      return buildMoebooruUrl('https://sakugabooru.com/post.json', query, false);
-    },
+    buildUrl: buildSakugabooruUrl,
     buildTagUrl(query) {
-      return buildMoebooruTagUrl('https://sakugabooru.com/tag.json', query);
+      return buildMoebooruTagUrl('https://www.sakugabooru.com/tag.json', query);
     },
     parseTags: parseTagRows,
     parse(payload) {
@@ -759,7 +769,7 @@ export const SOURCES = {
     shortName: 'Derpibooru',
     home: 'https://derpibooru.org/',
     description: '插画、GIF 与 WebM 标签图库',
-    capabilities: { image: true, date: false, video: true },
+    capabilities: { image: true, date: false, video: false },
     buildUrl: buildDerpibooruUrl,
     parse: parseDerpibooru
   },
@@ -768,7 +778,7 @@ export const SOURCES = {
     shortName: 'Furbooru',
     home: 'https://furbooru.org/',
     description: '公开插画、GIF 与 WebM 标签图库',
-    capabilities: { image: true, date: false, video: true },
+    capabilities: { image: true, date: false, video: false },
     buildUrl(query) {
       return buildPhilomenaUrl('https://furbooru.org/', query);
     },
@@ -781,7 +791,7 @@ export const SOURCES = {
     shortName: 'Manebooru',
     home: 'https://manebooru.art/',
     description: '公开插画、动画与标签媒体图库',
-    capabilities: { image: true, date: false, video: true },
+    capabilities: { image: true, date: false, video: false },
     buildUrl(query) {
       return buildPhilomenaUrl('https://manebooru.art/', query);
     },

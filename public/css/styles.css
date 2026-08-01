@@ -413,7 +413,7 @@ button:active:not(:disabled) {
   display: grid;
   min-width: 0;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
+  align-items: start;
   gap: 12px;
 }
 
@@ -458,14 +458,10 @@ button:active:not(:disabled) {
 .source-scroller {
   display: flex;
   min-width: 0;
+  flex-wrap: wrap;
   gap: 8px;
-  overflow-x: auto;
-  padding: 2px 2px 5px;
-  scrollbar-width: none;
-}
-
-.source-scroller::-webkit-scrollbar {
-  display: none;
+  overflow: visible;
+  padding: 2px;
 }
 
 .source-chip,
@@ -1809,7 +1805,8 @@ dialog::backdrop {
   opacity: 1;
 }
 
-.filmstrip-item img {
+.filmstrip-item img,
+.filmstrip-item video {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -2239,9 +2236,7 @@ dialog::backdrop {
   }
 
   .source-scroller {
-    margin-right: -12px;
-    overscroll-behavior-x: contain;
-    scroll-padding-inline: 12px;
+    margin-right: 0;
   }
 
   .source-chip,

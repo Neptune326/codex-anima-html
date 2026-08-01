@@ -1,6 +1,6 @@
 # Atlas Gallery
 
-Atlas Gallery 是一个基于原生 HTML、CSS、JavaScript 和 Node.js 的多站点图片与视频图库。前端采用 Material 3 风格，Node 服务负责托管静态资源、转发站点 API 请求和下载媒体文件，因此浏览器不需要直接处理跨域请求。
+Atlas Gallery 是一个基于原生 HTML、CSS、JavaScript 和 Node.js 的多站点图片与视频图库。前端采用 Material 3 风格，Node 服务负责托管静态资源、转发站点 API 请求，并以流式方式代理封面、视频和下载文件，因此浏览器不需要直接处理跨域与媒体防盗链。
 
 项目不依赖 Vue、React、构建工具或第三方 npm 包，安装 Node.js 后即可运行。
 
@@ -38,7 +38,7 @@ npm start
 http://127.0.0.1:4173
 ```
 
-项目没有第三方 npm 依赖，因此首次运行不要求执行 `npm install`。不要直接双击 `public/index.html`，站点请求和下载功能依赖 Node 服务提供的 `/api/proxy` 与 `/api/download` 接口。
+项目没有第三方 npm 依赖，因此首次运行不要求执行 `npm install`。不要直接双击 `public/index.html`，站点请求、媒体预览和下载功能依赖 Node 服务提供的 `/api/proxy`、`/api/media` 与 `/api/download` 接口。
 
 运行检查和测试：
 
@@ -154,7 +154,7 @@ Invoke-RestMethod http://127.0.0.1:4173/api/health
 
 全新 Linux 服务器的逐步安装、Nginx 静态托管、systemd、HTTPS、更新、备份和故障排查说明见 [使用与 Linux 部署手册](docs/USER_AND_LINUX_DEPLOYMENT.md)。可直接使用的配置模板位于 `deploy/`。
 
-完整功能需要保留 Node 服务提供 `/api/proxy` 与 `/api/download`。推荐由 Nginx 直接提供 `public/` 静态资源，并把 `/api/` 反向代理到仅监听 `127.0.0.1:4173` 的 Node 服务。
+完整功能需要保留 Node 服务提供 `/api/proxy`、`/api/media` 与 `/api/download`。推荐由 Nginx 直接提供 `public/` 静态资源，并把整个 `/api/` 路径反向代理到仅监听 `127.0.0.1:4173` 的 Node 服务。`/api/media` 支持视频 Range 分段读取并直接转发响应，不会把完整视频缓冲到 Node.js 内存。
 
 ### 直接运行
 
@@ -172,10 +172,16 @@ npm start
 Linux 前台运行：
 
 ```bash
+HOST=0.0.0.0 PORT=4173 npm start
+```
+
+国外服务器通常可以直接运行以上命令。国内服务器或直连测试失败的服务器，需要先准备服务器网络可达的 HTTP/HTTPS 代理，再运行：
+
+```bash
 HOST=0.0.0.0 PORT=4173 UPSTREAM_PROXY=http://127.0.0.1:7897 npm start
 ```
 
-服务器能够直接访问所有目标站点时，省略 `UPSTREAM_PROXY`。监听 `0.0.0.0` 会向网络开放服务，应配合防火墙、可信局域网或反向代理使用。
+服务器地区不是最终判断依据，应以服务器本机对目标站点的连通测试为准。监听 `0.0.0.0` 会向网络开放服务，应配合防火墙、可信局域网或反向代理使用。
 
 ### 使用 systemd 常驻运行
 

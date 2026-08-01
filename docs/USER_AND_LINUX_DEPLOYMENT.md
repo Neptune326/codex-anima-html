@@ -1,13 +1,13 @@
 # Atlas Gallery 使用与 Linux 部署手册
 
-本文档适用于 Atlas Gallery `2.7.0`。示例服务器使用 Ubuntu `22.04/24.04` 或 Debian `12`，部署目录为 `/opt/codex-anima-html`，Node 服务监听 `127.0.0.1:4173`，Nginx 对外提供网页和 HTTPS。
+本文档适用于 Atlas Gallery `2.8.0`。示例服务器使用 Ubuntu `22.04/24.04` 或 Debian `12`，部署目录为 `/opt/codex-anima-html`，Node 服务监听 `127.0.0.1:4173`，Nginx 对外提供网页和 HTTPS。
 
 ## 1. 部署结构
 
 Atlas Gallery 由两部分组成：
 
 - `public/` 是 HTML、CSS、JavaScript 静态前端，由 Nginx 直接提供。
-- `src/server.js` 提供 `/api/proxy`、`/api/download`、`/api/health` 和站点健康检查，由 Node.js 运行。
+- `src/server.js` 提供 `/api/proxy`、`/api/media`、`/api/download`、`/api/health` 和站点健康检查，由 Node.js 运行。
 
 仅复制 `public/` 到 Nginx 会显示页面，但图库请求和下载会失败。完整部署必须同时运行 Node 服务，并由 Nginx 将 `/api/` 转发到 `127.0.0.1:4173`。
 
@@ -23,6 +23,27 @@ Atlas Gallery 由两部分组成：
 - 服务器可直接访问集成站点，或有服务器能够访问的 HTTP/HTTPS 代理。
 
 本地电脑上的 Clash Verge 不能自动代理远程服务器。Linux 服务器需要直连目标站点、在服务器本机运行代理，或连接一个服务器网络可达的代理地址。
+
+### 2.1 根据服务器网络选择连接方式
+
+- 国外服务器：通常可以直接访问目标站点，先按直连模式部署，不设置 `UPSTREAM_PROXY`。
+- 国内服务器：部分目标站点可能无法连接或连接不稳定，先执行下面的测试；存在失败站点时再配置代理。
+
+服务器地区只能作为初步判断，最终以服务器本机的测试结果为准。登录服务器后执行：
+
+```bash
+for url in \
+  'https://yande.re/post.json?limit=1' \
+  'https://danbooru.donmai.us/posts.json?limit=1' \
+  'https://capi-v2.sankakucomplex.com/posts?limit=1' \
+  'https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&limit=1'
+do
+  curl --connect-timeout 10 --max-time 20 -o /dev/null -sS \
+    -w "%{http_code} %{time_total}s ${url}\n" "$url" || echo "连接失败 ${url}"
+done
+```
+
+返回 HTTP `200-499` 表示服务器已经连接到目标站点；返回 `000`、DNS 错误、连接超时或拒绝连接表示该站点不可达。国外服务器测试全部可达时不需要代理；国内或国外服务器只要存在不可达站点，就应使用代理模式。
 
 ## 3. 安装系统软件
 
@@ -96,20 +117,36 @@ sudo install -m 0640 -o root -g atlas-gallery \
 sudo nano /etc/atlas-gallery/atlas-gallery.env
 ```
 
-服务器可直连目标站点时保持：
+### 5.1 国外服务器或直连测试通过
+
+环境文件只保留：
 
 ```dotenv
 HOST=127.0.0.1
 PORT=4173
 ```
 
-服务器需要代理时增加：
+不要设置 `UPSTREAM_PROXY`。服务会由 Linux 服务器直接请求图库站点，健康检查中的 `proxyMode` 应为 `direct`。
+
+### 5.2 国内服务器或直连测试失败
+
+先确保 Linux 服务器本机已经运行 HTTP/Mixed 代理，或拥有服务器网络可达的 HTTP/HTTPS 代理地址，再增加：
 
 ```dotenv
 UPSTREAM_PROXY=http://127.0.0.1:7897
 ```
 
-`UPSTREAM_PROXY` 只支持 `http://` 或 `https://` 地址。代理需要用户名和密码时，把完整地址写在服务器环境文件中，并保持文件权限为 `0640`；不要提交到 Git。
+`127.0.0.1:7897` 仅适用于代理程序运行在这台 Linux 服务器且实际监听该端口的情况。远程代理应填写服务器能够访问的地址，例如 `http://10.0.0.8:7890`。`UPSTREAM_PROXY` 只支持 `http://` 或 `https://` 地址，不支持 SOCKS 地址。
+
+配置前先验证代理链路：
+
+```bash
+curl --proxy http://127.0.0.1:7897 \
+  --connect-timeout 10 --max-time 20 \
+  'https://yande.re/post.json?limit=1'
+```
+
+代理需要用户名和密码时，把完整地址写在服务器环境文件中，并保持文件权限为 `0640`；不要提交到 Git，也不要将无认证代理端口开放到公网。
 
 安装 systemd 服务：
 
@@ -131,7 +168,7 @@ curl --fail http://127.0.0.1:4173/api/health
 健康检查应返回类似内容：
 
 ```json
-{"ok":true,"version":"2.7.0","proxyMode":"direct"}
+{"ok":true,"version":"2.8.0","proxyMode":"direct"}
 ```
 
 `proxyMode` 的值：
@@ -139,6 +176,21 @@ curl --fail http://127.0.0.1:4173/api/health
 - `direct`：服务器直接连接目标站点。
 - `configured`：服务读取了代理环境变量。
 - `auto`：仅 Windows 会自动探测本机 `7897/7890` 端口，Linux 不使用此模式。
+
+代理模式配置完成后，`proxyMode` 应为 `configured`。修改环境文件后必须执行：
+
+```bash
+sudo systemctl restart atlas-gallery
+curl --fail http://127.0.0.1:4173/api/health
+```
+
+再测试项目实际使用的站点链路：
+
+```bash
+curl --fail 'http://127.0.0.1:4173/api/site-health?source=yandere'
+curl --fail 'http://127.0.0.1:4173/api/site-health?source=danbooru'
+curl --fail 'http://127.0.0.1:4173/api/site-health?source=sankaku'
+```
 
 查看服务日志：
 
@@ -332,10 +384,11 @@ sudo journalctl -u atlas-gallery -n 100 --no-pager
 
 ```bash
 curl http://127.0.0.1:4173/api/health
+curl -i 'http://127.0.0.1:4173/api/site-health?source=yandere'
 sudo journalctl -u atlas-gallery -f
 ```
 
-健康检查只确认服务运行，不代表目标站点可达。日志出现连接超时、拒绝连接或 DNS 错误时，检查服务器网络、DNS 和 `UPSTREAM_PROXY`。
+`/api/health` 只确认服务运行，`/api/site-health` 才会实际访问目标站点。直连模式失败时，按 5.2 节设置 `UPSTREAM_PROXY`；代理模式失败时，先使用 `curl --proxy` 检查代理地址和端口，再检查代理规则、DNS 与服务器防火墙。
 
 Nginx 返回 `403 Forbidden`：
 

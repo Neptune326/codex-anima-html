@@ -619,6 +619,7 @@ function postCard(post, index) {
   const isFavorite = Boolean(state.favorites[favoriteKey(post)]);
   const isSensitive = state.settings.blurSensitive && post.rating !== 'safe';
   const preview = post.preview || post.sample || post.file;
+  const previewUrl = buildMediaUrl(preview);
   const mediaName = post.type === 'video' ? '视频' : '图片';
   const hasNotes = Boolean(post.favoriteNote || post.favoriteLabels?.length);
   const width = Number(post.width) || 4;
@@ -626,9 +627,9 @@ function postCard(post, index) {
   const aspectRatio = Math.min(3, Math.max(0.4, width / height));
   const videoThumbnail = post.type === 'video' && /\.(?:mp4|webm)(?:[?#]|$)/i.test(preview);
   const mediaElement = videoThumbnail
-    ? `<video data-src="${escapeHtml(preview)}" muted loop playsinline preload="none" aria-label="${escapeHtml(post.tags?.slice(0, 6).join(', ') || `帖子 ${post.id}`)}"></video>`
+    ? `<video data-src="${escapeHtml(previewUrl)}" muted loop playsinline preload="none" aria-label="${escapeHtml(post.tags?.slice(0, 6).join(', ') || `帖子 ${post.id}`)}"></video>`
     : `<img
-          data-src="${escapeHtml(preview)}"
+          data-src="${escapeHtml(previewUrl)}"
           alt="${escapeHtml(post.tags?.slice(0, 6).join(', ') || `帖子 ${post.id}`)}"
           loading="lazy"
           decoding="async"
@@ -737,6 +738,10 @@ function buildRequestUrl(upstreamUrl) {
   }
 
   return `/api/proxy?url=${encodeURIComponent(upstreamUrl)}`;
+}
+
+function buildMediaUrl(upstreamUrl) {
+  return upstreamUrl ? `/api/media?url=${encodeURIComponent(upstreamUrl)}` : '';
 }
 
 function readResponseCache(upstreamUrl, allowExpired = false) {
@@ -1075,7 +1080,7 @@ function renderDownloadQueue() {
 
     return `
       <article class="download-item is-${item.status}">
-        <img src="${escapeHtml(item.post.preview || item.post.sample || '')}" alt="" loading="lazy">
+        <img src="${escapeHtml(buildMediaUrl(item.post.preview || item.post.sample || ''))}" alt="" loading="lazy">
         <div>
           <strong>${escapeHtml(item.filename)}</strong>
           <small>${statusText}${item.error ? ` · ${escapeHtml(item.error)}` : ''}</small>
@@ -1235,14 +1240,18 @@ function renderPreview() {
   }
 
   const mediaUrl = post.type === 'video' ? post.file : post.sample || post.file;
+  const previewUrl = post.preview || post.sample || post.file;
+  const poster = /\.(?:mp4|webm)(?:[?#]|$)/i.test(previewUrl)
+    ? ''
+    : `poster="${escapeHtml(buildMediaUrl(previewUrl))}"`;
   previewZoom = 1;
   elements.previewDialog.classList.toggle('hide-details', state.settings.hideDetails);
   elements.previewZoom.hidden = post.type === 'video';
   elements.previewMedia.innerHTML = post.type === 'video'
     ? `
       <video
-        src="${escapeHtml(mediaUrl)}"
-        poster="${escapeHtml(post.preview)}"
+        src="${escapeHtml(buildMediaUrl(mediaUrl))}"
+        ${poster}
         controls
         playsinline
         ${state.settings.autoplay ? 'autoplay' : ''}
@@ -1250,7 +1259,7 @@ function renderPreview() {
         ${state.settings.videoLoop ? 'loop' : ''}
       ></video>
     `
-    : `<img src="${escapeHtml(mediaUrl)}" alt="${escapeHtml(post.tags?.join(', ') || `帖子 ${post.id}`)}">`;
+    : `<img src="${escapeHtml(buildMediaUrl(mediaUrl))}" alt="${escapeHtml(post.tags?.join(', ') || `帖子 ${post.id}`)}">`;
   renderPreviewFilmstrip(rows);
 
   const source = getSource(post.source);
@@ -1330,6 +1339,10 @@ function renderPreviewFilmstrip(rows) {
   const end = Math.min(rows.length, selectedIndex + 5);
   elements.previewFilmstrip.innerHTML = rows.slice(start, end).map((post, offset) => {
     const index = start + offset;
+    const preview = post.preview || post.sample || post.file;
+    const thumbnail = post.type === 'video' && /\.(?:mp4|webm)(?:[?#]|$)/i.test(preview)
+      ? `<video src="${escapeHtml(buildMediaUrl(preview))}" muted playsinline preload="metadata"></video>`
+      : `<img src="${escapeHtml(buildMediaUrl(preview))}" alt="" loading="lazy">`;
     return `
       <button
         class="filmstrip-item ${index === selectedIndex ? 'is-active' : ''}"
@@ -1337,7 +1350,7 @@ function renderPreviewFilmstrip(rows) {
         data-preview-index="${index}"
         title="帖子 #${escapeHtml(post.id)}"
       >
-        <img src="${escapeHtml(post.preview || post.sample)}" alt="" loading="lazy">
+        ${thumbnail}
         ${post.type === 'video' ? icon('video') : ''}
       </button>
     `;
