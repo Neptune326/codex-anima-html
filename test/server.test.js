@@ -15,6 +15,7 @@ const {
   resolveStaticPath,
   safeRange,
   sanitizeFilename,
+  upstreamHeaders,
   validateDownloadTarget,
   validateTarget
 } = require('../src/server.js');
@@ -96,6 +97,18 @@ test('media requests use safe ranges and source-aware referers', () => {
     mediaReferer(new URL('https://cdn.twibooru.org/img/sample.webm')),
     'https://twibooru.org/'
   );
+  assert.equal(
+    mediaReferer(new URL('https://v.sankakucomplex.com/data/sample.mp4')),
+    'https://chan.sankakucomplex.com/'
+  );
+});
+
+test('Sankaku API requests use browser-compatible headers', () => {
+  const headers = upstreamHeaders(new URL('https://capi-v2.sankakucomplex.com/posts'));
+  assert.equal(headers.Accept, 'application/vnd.sankaku.api+json;v=2');
+  assert.equal(headers.Referer, 'https://chan.sankakucomplex.com/');
+  assert.match(headers['User-Agent'], /^Mozilla\/5\.0/);
+  assert.deepEqual(upstreamHeaders(new URL('https://danbooru.donmai.us/posts.json')), {});
 });
 
 test('download targets and filenames are constrained', () => {

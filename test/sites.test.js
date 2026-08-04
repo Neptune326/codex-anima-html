@@ -38,7 +38,7 @@ test('site adapters build allowlisted API URLs', async () => {
   assert.equal(SOURCES.xbooru.capabilities.video, true);
   assert.equal(SOURCES.tbib.capabilities.video, false);
   assert.equal(SOURCES.gelbooru.capabilities.video, false);
-  assert.equal(SOURCES.sankaku.capabilities.video, false);
+  assert.equal(SOURCES.sankaku.capabilities.video, true);
   assert.equal(SOURCES.rule34.capabilities.video, false);
   assert.equal(SOURCES.e926.capabilities.video, false);
   assert.equal(SOURCES.derpibooru.capabilities.video, false);
@@ -96,6 +96,8 @@ test('new adapters normalize image and video payloads', async () => {
   );
   assert.match(SOURCES.sakugabooru.buildUrl(videoQuery).searchParams.get('tags'), /animated/);
   assert.match(SOURCES.sakugabooru.buildUrl(imageQuery).searchParams.get('tags'), /-animated/);
+  assert.match(SOURCES.sankaku.buildUrl(videoQuery).searchParams.get('tags'), /video/);
+  assert.match(SOURCES.sankaku.buildUrl(imageQuery).searchParams.get('tags'), /-video/);
   assert.equal(SOURCES.wallhaven.buildUrl(imageQuery).searchParams.get('purity'), '100');
 
   const [aibooruPost] = SOURCES.aibooru.parse([{
@@ -203,6 +205,22 @@ test('new adapters normalize image and video payloads', async () => {
   assert.equal(tbibPost.sample, 'https://tbib.org/samples/8487/sample_sample.jpg');
   assert.equal(tbibPost.file, 'https://tbib.org/images/8487/sample.jpg');
   assert.equal(tbibPost.type, 'image');
+
+  const [sankakuPost] = SOURCES.sankaku.parse([{
+    id: 46,
+    total_score: 72,
+    rating: 'q',
+    width: 1280,
+    height: 720,
+    tags: [{ name_en: 'animated' }],
+    preview_url: 'https://v.sankakucomplex.com/preview.jpg',
+    sample_url: 'https://v.sankakucomplex.com/sample.mp4',
+    file_url: 'https://v.sankakucomplex.com/file.mp4',
+    file_type: 'video/mp4; charset=binary'
+  }]);
+  assert.equal(sankakuPost.type, 'video');
+  assert.equal(sankakuPost.extension, 'mp4');
+  assert.deepEqual(sankakuPost.tags, ['animated']);
 });
 
 test('e621, e926 and e6AI adapters flatten tags and normalize media metadata', async () => {

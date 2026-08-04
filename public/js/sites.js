@@ -72,7 +72,12 @@ function normalizeRating(value, sourceId, forceSafe = false) {
 
 function fileExtension(url, explicitExtension = '') {
   if (explicitExtension) {
-    return String(explicitExtension).toLowerCase().replace(/^\./, '');
+    return String(explicitExtension)
+      .toLowerCase()
+      .split(';', 1)[0]
+      .split('/')
+      .pop()
+      .replace(/^\./, '');
   }
 
   try {
@@ -633,7 +638,7 @@ export const SOURCES = {
     shortName: 'Sankaku',
     home: 'https://chan.sankakucomplex.com/',
     description: 'Sankaku Complex 媒体频道',
-    capabilities: { image: true, date: false, video: false },
+    capabilities: { image: true, date: false, video: true },
     buildUrl(query) {
       const url = new URL('https://capi-v2.sankakucomplex.com/posts');
       return addSearchParams(url, {
@@ -641,7 +646,7 @@ export const SOURCES = {
         page: query.page,
         tags: joinTags(query, [
           'order:popular',
-          query.mediaType === 'video' ? 'video' : ''
+          query.mediaType === 'video' ? 'video' : '-video'
         ])
       });
     },

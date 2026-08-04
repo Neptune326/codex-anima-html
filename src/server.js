@@ -116,6 +116,7 @@ const MEDIA_REFERERS = Object.freeze([
   ['twibooru.org', 'https://twibooru.org/'],
   ['xbooru.com', 'https://xbooru.com/'],
   ['hypnohub.net', 'https://hypnohub.net/'],
+  ['sankakucomplex.com', 'https://chan.sankakucomplex.com/'],
   ['sakugabooru.com', 'https://www.sakugabooru.com/']
 ]);
 
@@ -347,6 +348,18 @@ function safeRange(value) {
   return /^bytes=\d*-\d*$/.test(String(value || '')) ? String(value) : '';
 }
 
+function upstreamHeaders(target) {
+  if (target.hostname.toLowerCase() === 'capi-v2.sankakucomplex.com') {
+    return {
+      Accept: 'application/vnd.sankaku.api+json;v=2',
+      Referer: 'https://chan.sankakucomplex.com/',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/138.0.0.0 Safari/537.36'
+    };
+  }
+
+  return {};
+}
+
 async function createUpstreamRequest(target, proxyResolver, onResponse, requestOptions = {}) {
   const proxy = await proxyResolver.resolve();
   const options = {
@@ -359,6 +372,7 @@ async function createUpstreamRequest(target, proxyResolver, onResponse, requestO
       'Accept-Encoding': 'identity',
       'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.7',
       'User-Agent': 'AtlasGallery/2.8 (+https://github.com/Neptune326/codex-anima-html)',
+      ...upstreamHeaders(target),
       ...requestOptions.headers
     }
   };
@@ -820,6 +834,7 @@ module.exports = {
   resolveStaticPath,
   safeRange,
   sanitizeFilename,
+  upstreamHeaders,
   validateDownloadTarget,
   validateTarget
 };

@@ -152,7 +152,7 @@ Invoke-RestMethod http://127.0.0.1:4173/api/health
 
 ## 部署手册
 
-全新 Linux 服务器的逐步安装、Nginx 静态托管、systemd、HTTPS、更新、备份和故障排查说明见 [使用与 Linux 部署手册](docs/USER_AND_LINUX_DEPLOYMENT.md)。可直接使用的配置模板位于 `deploy/`。
+全新 Linux 服务器的逐步安装、Nginx 静态托管、systemd、单端口防火墙、更新、备份和故障排查说明见 [Linux 部署手册](docs/USER_AND_LINUX_DEPLOYMENT.md)。生产部署仅对外开放 TCP `59886`，可直接使用的配置模板位于 `deploy/`。
 
 完整功能需要保留 Node 服务提供 `/api/proxy`、`/api/media` 与 `/api/download`。推荐由 Nginx 直接提供 `public/` 静态资源，并把整个 `/api/` 路径反向代理到仅监听 `127.0.0.1:4173` 的 Node 服务。`/api/media` 支持视频 Range 分段读取并直接转发响应，不会把完整视频缓冲到 Node.js 内存。
 
@@ -172,16 +172,16 @@ npm start
 Linux 前台运行：
 
 ```bash
-HOST=0.0.0.0 PORT=4173 npm start
+HOST=127.0.0.1 PORT=4173 npm start
 ```
 
 国外服务器通常可以直接运行以上命令。国内服务器或直连测试失败的服务器，需要先准备服务器网络可达的 HTTP/HTTPS 代理，再运行：
 
 ```bash
-HOST=0.0.0.0 PORT=4173 UPSTREAM_PROXY=http://127.0.0.1:7897 npm start
+HOST=127.0.0.1 PORT=4173 UPSTREAM_PROXY=http://127.0.0.1:7897 npm start
 ```
 
-服务器地区不是最终判断依据，应以服务器本机对目标站点的连通测试为准。监听 `0.0.0.0` 会向网络开放服务，应配合防火墙、可信局域网或反向代理使用。
+服务器地区不是最终判断依据，应以服务器本机对目标站点的连通测试为准。Linux 生产环境保持 Node 监听 `127.0.0.1:4173`，由 Nginx 的 `59886` 端口统一对外提供服务。
 
 ### 使用 systemd 常驻运行
 
@@ -223,17 +223,18 @@ curl http://127.0.0.1:4173/api/health
 
 ### 使用 Nginx 反向代理
 
-推荐通过 HTTPS 域名访问，以保证浏览器存储和媒体功能稳定。以下示例假设 TLS 由现有 Nginx 配置或证书工具管理：
+生产部署由 Nginx 监听 TCP `59886`，Node 服务只监听 `127.0.0.1:4173`：
 
 ```nginx
 server {
-    listen 443 ssl http2;
+    listen 59886;
+    listen [::]:59886;
     server_name gallery.example.com;
 
-    ssl_certificate /etc/letsencrypt/live/gallery.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/gallery.example.com/privkey.pem;
+    root /opt/codex-anima-html/public;
+    index index.html;
 
-    location / {
+    location /api/ {
         proxy_pass http://127.0.0.1:4173;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
@@ -241,6 +242,10 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout 300s;
         proxy_buffering off;
+    }
+
+    location / {
+        try_files $uri $uri/ =404;
     }
 }
 ```
@@ -251,6 +256,8 @@ server {
 sudo nginx -t
 sudo systemctl reload nginx
 ```
+
+防火墙和云安全组仅开放业务端口 `59886`，不要开放 `80`、`443` 或 `4173`；SSH 管理端口应限制来源 IP。访问地址为 `http://服务器地址:59886/`。
 
 Node 服务会在内存中缓冲上游响应：普通站点 API 单次上限为 `16 MB`，媒体下载单次上限为 `256 MB`。浏览器下载队列并发可设为 `1-4`；每个下载在拼接响应时最多同时持有约 `512 MB` 的分块和连续缓冲区，因此并发 `4` 个满额下载可能临时占用约 `2,048 MB` 的服务器内存，未计入 Node.js 和操作系统本身。当前实现适合个人或受控用户范围部署。
 
