@@ -6,7 +6,9 @@ import {
   ratingName
 } from './sites.js';
 import {
+  clampPreviewPan,
   downloadFilename,
+  galleryViewKey,
   matchesBlockedTags,
   matchesDimension,
   matchesSmartCollection,
@@ -64,9 +66,6 @@ const elements = {
   gallery: document.querySelector('#gallery'),
   loadingMore: document.querySelector('#loadingMore'),
   loadSentinel: document.querySelector('#loadSentinel'),
-  messageBanner: document.querySelector('#messageBanner'),
-  messageText: document.querySelector('#messageText'),
-  retryButton: document.querySelector('#retryButton'),
   collectionTools: document.querySelector('#collectionTools'),
   batchToolbar: document.querySelector('#batchToolbar'),
   selectionCount: document.querySelector('#selectionCount'),
@@ -141,6 +140,13 @@ let tagSuggestionTimer;
 let tagSuggestionRequest;
 let lazyMediaObserver;
 let previewZoom = 1;
+let previewPanX = 0;
+let previewPanY = 0;
+let previewDrag = null;
+let pendingScrollRestoreKey = '';
+let scrollSaveFrame = 0;
+let galleryError = '';
+let loadedPopularContextKey = '';
 let downloadWorkerActive = false;
 let downloadSequence = 0;
 const selectedDownloads = new Set();
@@ -217,6 +223,18 @@ function currentSource() {
   return getSource(state.source);
 }
 
+function popularContextKey() {
+  return JSON.stringify([
+    state.source,
+    state.mediaType,
+    state.period,
+    state.anchorDate,
+    state.tags,
+    [...state.ratings].sort(),
+    state.settings.blockedTags
+  ]);
+}
+
 function ensureCompatibleSource() {
   const nextSourceId = compatibleSourceId(SOURCES, state.source, state.mediaType);
   const changed = nextSourceId !== state.source;
@@ -257,6 +275,38 @@ function persistLibrary() {
   return saveLibrary(state);
 }
 
+function scrollStorageKey(key = galleryViewKey(state)) {
+  return `atlas-gallery-scroll:${key}`;
+}
+
+function saveGalleryScrollPosition() {
+  try {
+    sessionStorage.setItem(scrollStorageKey(), String(Math.max(0, window.scrollY)));
+  } catch {
+    // Scroll restoration remains optional when session storage is unavailable.
+  }
+}
+
+function scheduleGalleryScrollRestore() {
+  pendingScrollRestoreKey = galleryViewKey(state);
+}
+
+function restoreGalleryScrollPosition() {
+  if (!pendingScrollRestoreKey) {
+    return;
+  }
+
+  const key = pendingScrollRestoreKey;
+  pendingScrollRestoreKey = '';
+  let top = 0;
+  try {
+    top = Math.max(0, Number(sessionStorage.getItem(scrollStorageKey(key))) || 0);
+  } catch {
+    // Fall back to the top of the page.
+  }
+  requestAnimationFrame(() => window.scrollTo({ top, behavior: 'auto' }));
+}
+
 function showToast(message) {
   elements.toast.textContent = message;
   elements.toast.classList.add('is-visible');
@@ -264,15 +314,6 @@ function showToast(message) {
   toastTimer = setTimeout(() => {
     elements.toast.classList.remove('is-visible');
   }, 2200);
-}
-
-function showMessage(message) {
-  elements.messageText.textContent = message;
-  elements.messageBanner.hidden = false;
-}
-
-function hideMessage() {
-  elements.messageBanner.hidden = true;
 }
 
 function renderSources() {
@@ -589,7 +630,29 @@ function renderHeader() {
   elements.sectionIconUse.setAttribute('href', '#icon-fire');
 }
 
+function statePanel({ title, description, iconName, action = '' }) {
+  return `
+    <div class="empty-state" role="status">
+      <div class="empty-state-content">
+        <div class="empty-state-icon">${icon(iconName)}</div>
+        <h2>${escapeHtml(title)}</h2>
+        <p>${escapeHtml(description)}</p>
+        ${action}
+      </div>
+    </div>
+  `;
+}
+
 function emptyState() {
+  if (galleryError) {
+    return statePanel({
+      title: '内容加载失败',
+      description: galleryError,
+      iconName: 'retry',
+      action: '<button class="filled-button" type="button" data-retry-gallery>重新加载</button>'
+    });
+  }
+
   const favoritesView = state.view === 'favorites';
   const historyView = state.view === 'history';
   const title = favoritesView
@@ -600,15 +663,7 @@ function emptyState() {
     : historyView ? '打开图片或视频预览后，会在这里留下记录。' : '调整标签、媒体类型或内容分级后重试。';
   const iconName = favoritesView ? 'favorite' : historyView ? 'history' : state.mediaType;
 
-  return `
-    <div class="empty-state">
-      <div class="empty-state-content">
-        <div class="empty-state-icon">${icon(iconName)}</div>
-        <h2>${title}</h2>
-        <p>${description}</p>
-      </div>
-    </div>
-  `;
+  return statePanel({ title, description, iconName });
 }
 
 function renderSkeletons() {
@@ -646,6 +701,7 @@ function postCard(post, index) {
       </label>
       <button class="media-button" type="button" data-open-preview="${index}" aria-label="预览帖子 ${escapeHtml(post.id)}">
         ${mediaElement}
+        <span class="media-error-state" hidden>${icon('retry')}<span>媒体加载失败</span></span>
         <span class="media-badge">${icon(post.type)}${mediaName}</span>
         <span class="rating-badge">${ratingName(post.rating)}</span>
         ${hasNotes ? `<span class="note-badge" title="包含收藏备注">${icon('bookmark')}</span>` : ''}
@@ -678,7 +734,13 @@ function observeLazyMedia() {
       const media = entry.target;
       const loadedEvent = media instanceof HTMLVideoElement ? 'loadeddata' : 'load';
       media.addEventListener(loadedEvent, () => media.classList.add('is-loaded'), { once: true });
-      media.addEventListener('error', () => media.classList.add('is-loaded'), { once: true });
+      media.addEventListener('error', () => {
+        media.classList.add('is-loaded', 'has-error');
+        const errorState = media.closest('.media-button')?.querySelector('.media-error-state');
+        if (errorState) {
+          errorState.hidden = false;
+        }
+      }, { once: true });
       media.src = media.dataset.src;
       media.removeAttribute('data-src');
       if (media instanceof HTMLVideoElement) {
@@ -702,6 +764,7 @@ function renderGallery({ append = false } = {}) {
   const renderedRows = rows.slice(0, renderLimit);
   const existingCards = [...elements.gallery.querySelectorAll('.media-card')];
   const canAppend = append
+    && !galleryError
     && existingCards.length > 0
     && existingCards.length < renderedRows.length
     && existingCards.every((card, index) => {
@@ -721,13 +784,19 @@ function renderGallery({ append = false } = {}) {
     );
   } else {
     elements.gallery.innerHTML = renderedRows.length
-      ? renderedRows.map(postCard).join('')
+      ? renderedRows.map(postCard).join('') + (galleryError ? statePanel({
+        title: '后续内容加载失败',
+        description: galleryError,
+        iconName: 'retry',
+        action: '<button class="filled-button" type="button" data-retry-gallery>重新加载</button>'
+      }) : '')
       : emptyState();
   }
 
   observeLazyMedia();
   renderCollectionTools();
   renderBatchToolbar();
+  restoreGalleryScrollPosition();
 }
 
 function buildRequestUrl(upstreamUrl) {
@@ -869,10 +938,10 @@ async function fetchPosts({ reset = false, force = false } = {}) {
     activeRequest?.abort();
     posts = [];
     renderLimit = 60;
+    galleryError = '';
     selectedDownloads.clear();
     currentPage = 1;
     hasMore = true;
-    hideMessage();
     renderHeader();
     elements.resultCount.textContent = '加载中';
     renderSkeletons();
@@ -901,9 +970,10 @@ async function fetchPosts({ reset = false, force = false } = {}) {
     );
 
     posts = [...uniquePosts.values()].sort((left, right) => right.score - left.score);
+    loadedPopularContextKey = popularContextKey();
     hasMore = rawPosts.length >= PAGE_SIZE;
     currentPage += 1;
-    hideMessage();
+    galleryError = '';
     renderGallery();
   } catch (error) {
     if (error.name === 'AbortError' || sequence !== requestSequence) {
@@ -911,7 +981,8 @@ async function fetchPosts({ reset = false, force = false } = {}) {
     }
 
     const sourceName = currentSource().name;
-    showMessage(`${sourceName} 请求失败：${error.message}`);
+    galleryError = `${sourceName} 请求失败：${error.message}`;
+    hasMore = false;
     renderGallery();
   } finally {
     if (sequence === requestSequence) {
@@ -935,7 +1006,9 @@ function addRecentSearch(value) {
 }
 
 function applySearch() {
+  saveGalleryScrollPosition();
   state.tags = elements.tagInput.value.trim();
+  scheduleGalleryScrollRestore();
   addRecentSearch(state.tags);
   renderControls();
   fetchPosts({ reset: true });
@@ -948,7 +1021,9 @@ function changeSource(sourceId) {
 
   tagSuggestionRequest?.abort();
   remoteTagCandidates = [];
+  saveGalleryScrollPosition();
   state.source = sourceId;
+  scheduleGalleryScrollRestore();
   renderControls();
   fetchPosts({ reset: true });
 }
@@ -959,8 +1034,10 @@ function changeMediaType(mediaType) {
   }
 
   const previousSource = state.source;
+  saveGalleryScrollPosition();
   state.mediaType = mediaType;
   ensureCompatibleSource();
+  scheduleGalleryScrollRestore();
   tagSuggestionRequest?.abort();
   remoteTagCandidates = [];
 
@@ -1187,13 +1264,32 @@ function previewDate(post) {
   return Number.isNaN(date.getTime()) ? '未知' : date.toLocaleString('zh-CN');
 }
 
+function applyPreviewTransform() {
+  const image = elements.previewMedia.querySelector('img');
+  if (!image) {
+    return;
+  }
+
+  const pan = clampPreviewPan(
+    previewPanX,
+    previewPanY,
+    previewZoom,
+    elements.previewMedia.clientWidth,
+    elements.previewMedia.clientHeight
+  );
+  previewPanX = pan.x;
+  previewPanY = pan.y;
+  image.style.transform = `translate3d(${previewPanX}px, ${previewPanY}px, 0) scale(${previewZoom})`;
+  image.classList.toggle('is-zoomed', previewZoom > 1);
+}
+
 function setPreviewZoom(value) {
   previewZoom = Math.min(4, Math.max(0.5, value));
-  const image = elements.previewMedia.querySelector('img');
-  if (image) {
-    image.style.transform = `scale(${previewZoom})`;
-    image.classList.toggle('is-zoomed', previewZoom > 1);
+  if (previewZoom <= 1) {
+    previewPanX = 0;
+    previewPanY = 0;
   }
+  applyPreviewTransform();
   elements.zoomResetButton.textContent = `${Math.round(previewZoom * 100)}%`;
 }
 
@@ -1245,6 +1341,9 @@ function renderPreview() {
     ? ''
     : `poster="${escapeHtml(buildMediaUrl(previewUrl))}"`;
   previewZoom = 1;
+  previewPanX = 0;
+  previewPanY = 0;
+  previewDrag = null;
   elements.previewDialog.classList.toggle('hide-details', state.settings.hideDetails);
   elements.previewZoom.hidden = post.type === 'video';
   elements.previewMedia.innerHTML = post.type === 'video'
@@ -1259,7 +1358,7 @@ function renderPreview() {
         ${state.settings.videoLoop ? 'loop' : ''}
       ></video>
     `
-    : `<img src="${escapeHtml(buildMediaUrl(mediaUrl))}" alt="${escapeHtml(post.tags?.join(', ') || `帖子 ${post.id}`)}">`;
+    : `<img src="${escapeHtml(buildMediaUrl(mediaUrl))}" alt="${escapeHtml(post.tags?.join(', ') || `帖子 ${post.id}`)}" draggable="false">`;
   renderPreviewFilmstrip(rows);
 
   const source = getSource(post.source);
@@ -1302,6 +1401,9 @@ function renderPreview() {
       <button class="outlined-button" id="copyTags" type="button">
         ${icon('copy')}复制标签
       </button>
+      <button class="outlined-button wide" id="copyOriginalLink" type="button">
+        ${icon('copy')}复制原文件链接
+      </button>
       <button class="filled-button wide" id="previewDownload" type="button">
         ${icon('download')}下载文件
       </button>
@@ -1315,12 +1417,22 @@ function renderPreview() {
   elements.nextPreview.disabled = selectedIndex >= rows.length - 1;
   document.querySelector('#previewFavorite').addEventListener('click', () => toggleFavorite(post));
   document.querySelector('#copyTags').addEventListener('click', () => copyTags(post));
+  document.querySelector('#copyOriginalLink').addEventListener('click', () => copyOriginalLink(post));
   document.querySelector('#previewDownload').addEventListener('click', () => {
     downloadPosts([post]);
   });
   document.querySelector('#saveFavoriteMetadata').addEventListener('click', () => saveFavoriteMetadata(post));
 
   const video = elements.previewMedia.querySelector('video');
+  const previewMedia = video || elements.previewMedia.querySelector('img');
+  previewMedia?.addEventListener('error', () => {
+    elements.previewMedia.innerHTML = statePanel({
+      title: '媒体加载失败',
+      description: '当前媒体地址无法加载，请重试或打开原帖。',
+      iconName: 'retry',
+      action: '<button class="filled-button" type="button" data-retry-preview>重新加载</button>'
+    });
+  }, { once: true });
   if (video) {
     const savedTime = Number(state.videoProgress[favoriteKey(post)]) || 0;
     video.addEventListener('loadedmetadata', () => {
@@ -1414,6 +1526,15 @@ async function copyTags(post) {
   }
 }
 
+async function copyOriginalLink(post) {
+  try {
+    await navigator.clipboard.writeText(post.file);
+    showToast('原文件链接已复制');
+  } catch {
+    showToast('浏览器未允许复制，请打开原帖获取链接');
+  }
+}
+
 function openDrawer() {
   elements.settingsDrawer.classList.add('is-open');
   elements.settingsDrawer.setAttribute('aria-hidden', 'false');
@@ -1425,6 +1546,7 @@ function closeDrawer() {
 }
 
 function shiftDate(direction) {
+  saveGalleryScrollPosition();
   const date = new Date(`${state.anchorDate}T12:00:00`);
 
   if (state.period === 'day') {
@@ -1443,6 +1565,7 @@ function shiftDate(direction) {
   }
 
   state.anchorDate = formatDate(date);
+  scheduleGalleryScrollRestore();
   renderControls();
   fetchPosts({ reset: true });
 }
@@ -1480,6 +1603,7 @@ function createSmartCollection(name, tags, mediaType) {
 }
 
 function applySavedSearch(savedSearch) {
+  saveGalleryScrollPosition();
   state = {
     ...state,
     source: savedSearch.source || state.source,
@@ -1490,6 +1614,7 @@ function applySavedSearch(savedSearch) {
     tags: savedSearch.tags || ''
   };
   ensureCompatibleSource();
+  scheduleGalleryScrollRestore();
   elements.savedSearchDialog.close();
   renderControls();
   fetchPosts({ reset: true });
@@ -1590,13 +1715,21 @@ function registerEvents() {
     }
 
     if (button.dataset.view) {
+      saveGalleryScrollPosition();
       state.view = button.dataset.view;
       state.activeSmartCollection = state.view === 'favorites' ? state.activeSmartCollection : '';
+      scheduleGalleryScrollRestore();
       renderLimit = 60;
       selectedDownloads.clear();
       activeRequest?.abort();
       renderControls();
-      state.view === 'popular' ? fetchPosts({ reset: true }) : renderGallery();
+      if (state.view === 'popular') {
+        loadedPopularContextKey === popularContextKey()
+          ? renderGallery()
+          : fetchPosts({ reset: true });
+      } else {
+        renderGallery();
+      }
     }
 
     if (button.dataset.source) {
@@ -1617,22 +1750,25 @@ function registerEvents() {
         showToast('至少保留一个内容分级');
         return;
       }
+      saveGalleryScrollPosition();
       state.ratings = selected
         ? state.ratings.filter(item => item !== rating)
         : [...state.ratings, rating];
+      scheduleGalleryScrollRestore();
       renderControls();
       fetchPosts({ reset: true });
     }
 
     if (button.dataset.period) {
+      saveGalleryScrollPosition();
       state.period = button.dataset.period;
+      scheduleGalleryScrollRestore();
       renderControls();
       fetchPosts({ reset: true });
     }
 
     if (button.dataset.recentSearch !== undefined) {
-      state.tags = button.dataset.recentSearch;
-      elements.tagInput.value = state.tags;
+      elements.tagInput.value = button.dataset.recentSearch;
       applySearch();
     }
 
@@ -1686,8 +1822,10 @@ function registerEvents() {
     }
 
     if (button.dataset.smartCollection !== undefined) {
+      saveGalleryScrollPosition();
       state.view = 'favorites';
       state.activeSmartCollection = button.dataset.smartCollection;
+      scheduleGalleryScrollRestore();
       renderLimit = 60;
       persist();
       renderControls();
@@ -1704,8 +1842,10 @@ function registerEvents() {
     }
 
     if (button.dataset.applyCollection) {
+      saveGalleryScrollPosition();
       state.view = 'favorites';
       state.activeSmartCollection = button.dataset.applyCollection;
+      scheduleGalleryScrollRestore();
       elements.savedSearchDialog.close();
       renderLimit = 60;
       persist();
@@ -1726,11 +1866,22 @@ function registerEvents() {
     }
 
     if (button.dataset.searchTag) {
+      saveGalleryScrollPosition();
       state.view = 'popular';
       state.tags = button.dataset.searchTag;
+      elements.tagInput.value = state.tags;
+      scheduleGalleryScrollRestore();
       closePreview();
       renderControls();
       fetchPosts({ reset: true });
+    }
+
+    if (button.hasAttribute('data-retry-gallery')) {
+      fetchPosts({ reset: true, force: true });
+    }
+
+    if (button.hasAttribute('data-retry-preview')) {
+      renderPreview();
     }
 
     if (button.dataset.applySearch !== undefined) {
@@ -1798,7 +1949,6 @@ function registerEvents() {
     }
   });
   elements.refreshButton.addEventListener('click', () => fetchPosts({ reset: true, force: true }));
-  elements.retryButton.addEventListener('click', () => fetchPosts({ reset: true }));
   elements.settingsButton.addEventListener('click', openDrawer);
   document.querySelectorAll('[data-close-drawer]').forEach(button => {
     button.addEventListener('click', closeDrawer);
@@ -1806,12 +1956,16 @@ function registerEvents() {
   elements.previousDate.addEventListener('click', () => shiftDate(-1));
   elements.nextDate.addEventListener('click', () => shiftDate(1));
   elements.anchorDate.addEventListener('change', () => {
+    saveGalleryScrollPosition();
     state.anchorDate = elements.anchorDate.value || formatDate(new Date());
+    scheduleGalleryScrollRestore();
     renderControls();
     fetchPosts({ reset: true });
   });
   elements.dimensionFilter.addEventListener('change', () => {
+    saveGalleryScrollPosition();
     state.dimensionFilter = elements.dimensionFilter.value;
+    scheduleGalleryScrollRestore();
     renderLimit = 60;
     renderControls();
     renderGallery();
@@ -1983,6 +2137,44 @@ function registerEvents() {
     event.preventDefault();
     setPreviewZoom(previewZoom + (event.deltaY < 0 ? 0.25 : -0.25));
   }, { passive: false });
+  elements.previewMedia.addEventListener('dblclick', event => {
+    if (event.target.closest('img')) {
+      setPreviewZoom(previewZoom > 1 ? 1 : 2);
+    }
+  });
+  elements.previewMedia.addEventListener('pointerdown', event => {
+    const image = event.target.closest('img');
+    if (!image || previewZoom <= 1 || event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
+    previewDrag = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      panX: previewPanX,
+      panY: previewPanY
+    };
+    image.classList.add('is-dragging');
+    image.setPointerCapture(event.pointerId);
+  });
+  elements.previewMedia.addEventListener('pointermove', event => {
+    if (!previewDrag || previewDrag.pointerId !== event.pointerId) {
+      return;
+    }
+    previewPanX = previewDrag.panX + event.clientX - previewDrag.startX;
+    previewPanY = previewDrag.panY + event.clientY - previewDrag.startY;
+    applyPreviewTransform();
+  });
+  const finishPreviewDrag = event => {
+    if (!previewDrag || previewDrag.pointerId !== event.pointerId) {
+      return;
+    }
+    elements.previewMedia.querySelector('img')?.classList.remove('is-dragging');
+    previewDrag = null;
+  };
+  elements.previewMedia.addEventListener('pointerup', finishPreviewDrag);
+  elements.previewMedia.addEventListener('pointercancel', finishPreviewDrag);
   elements.previewDialog.addEventListener('close', () => {
     const post = visiblePosts()[selectedIndex];
     saveVideoProgress(post, elements.previewMedia.querySelector('video'), true);
@@ -2026,6 +2218,12 @@ function registerEvents() {
   window.addEventListener('offline', updateNetworkStatus);
   window.addEventListener('scroll', () => {
     elements.backToTop.hidden = window.scrollY < 700;
+    if (!scrollSaveFrame) {
+      scrollSaveFrame = requestAnimationFrame(() => {
+        scrollSaveFrame = 0;
+        saveGalleryScrollPosition();
+      });
+    }
   }, { passive: true });
   elements.backToTop.addEventListener('click', () => {
     window.scrollTo({ top: 0, behavior: state.settings.reduceMotion ? 'auto' : 'smooth' });

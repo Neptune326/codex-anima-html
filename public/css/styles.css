@@ -977,8 +977,9 @@ button:active:not(:disabled) {
   background: var(--surface);
   box-shadow: 0 1px 2px rgba(60, 64, 67, 0.06);
   transition: box-shadow var(--motion-duration), transform var(--motion-duration);
+  contain: layout paint style;
   content-visibility: auto;
-  contain-intrinsic-size: 0 330px;
+  contain-intrinsic-size: auto 330px;
 }
 
 .media-card:hover {
@@ -1010,6 +1011,34 @@ button:active:not(:disabled) {
 .media-button img.is-loaded,
 .media-button video.is-loaded {
   opacity: 1;
+}
+
+.media-button img.has-error,
+.media-button video.has-error {
+  visibility: hidden;
+}
+
+.media-error-state {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  gap: 8px;
+  place-content: center;
+  background: var(--surface-container-high);
+  color: var(--on-surface-variant);
+  font-size: 13px;
+}
+
+.media-error-state[hidden] {
+  display: none;
+}
+
+.media-error-state .icon {
+  width: 28px;
+  height: 28px;
+  margin: 0 auto;
+  color: var(--error);
 }
 
 .media-card:hover .media-button img,
@@ -1239,6 +1268,10 @@ button:active:not(:disabled) {
 .empty-state-content {
   max-width: 360px;
   color: var(--on-surface-variant);
+}
+
+.empty-state-content .filled-button {
+  margin-top: 18px;
 }
 
 .empty-state-icon {
@@ -1689,7 +1722,7 @@ dialog::backdrop {
   width: 100%;
   height: 100%;
   place-items: center;
-  overflow: auto;
+  overflow: hidden;
 }
 
 .preview-media img,
@@ -1703,10 +1736,34 @@ dialog::backdrop {
 .preview-media img {
   transition: transform var(--motion-duration);
   transform-origin: center;
+  user-select: none;
+  touch-action: none;
 }
 
 .preview-media img.is-zoomed {
-  cursor: zoom-out;
+  cursor: grab;
+}
+
+.preview-media img.is-dragging {
+  cursor: grabbing;
+  transition: none;
+}
+
+.preview-media > .empty-state {
+  width: min(100%, 440px);
+  min-height: 280px;
+  padding: 24px;
+  color: #ffffff;
+}
+
+.preview-media > .empty-state .empty-state-content,
+.preview-media > .empty-state h2 {
+  color: #ffffff;
+}
+
+.preview-media > .empty-state .empty-state-icon {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
 }
 
 .preview-zoom {

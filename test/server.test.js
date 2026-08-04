@@ -169,10 +169,17 @@ test('server serves health and static resources without hanging sockets', async 
       /script-src[^;]*'unsafe-inline'/
     );
     assert.match(page.body, /Atlas Gallery/);
+    assert.match(page.body, /放大后拖拽平移/);
 
     const module = await request(server, '/js/app.js', 'HEAD');
     assert.equal(module.status, 200);
     assert.equal(module.body, '');
+
+    const appScript = await request(server, '/js/app.js');
+    assert.equal(appScript.status, 200);
+    assert.match(appScript.body, /copyOriginalLink/);
+    assert.match(appScript.body, /pointermove/);
+    assert.match(appScript.body, /galleryViewKey/);
 
     const styles = await request(server, '/css/styles.css');
     assert.equal(styles.status, 200);
@@ -180,6 +187,8 @@ test('server serves health and static resources without hanging sockets', async 
     assert.match(styles.body, /\.source-scroller\s*\{[^}]*flex-wrap:\s*wrap;/s);
     assert.match(styles.body, /\.source-scroller\s*\{[^}]*overflow:\s*visible;/s);
     assert.doesNotMatch(styles.body, /\.source-scroller\s*\{[^}]*overflow-x:\s*auto;/s);
+    assert.match(styles.body, /content-visibility:\s*auto/);
+    assert.match(styles.body, /cursor:\s*grab/);
 
     const missing = await request(server, '/missing-resource');
     assert.equal(missing.status, 404);

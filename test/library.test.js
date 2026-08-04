@@ -88,6 +88,30 @@ test('dimension filters and media identities are deterministic', async () => {
   );
 });
 
+test('gallery view keys isolate scroll positions and preview panning stays bounded', async () => {
+  const { clampPreviewPan, galleryViewKey } = await import('../public/js/library.js');
+  const baseState = {
+    view: 'popular',
+    source: 'danbooru',
+    mediaType: 'image',
+    period: 'week',
+    anchorDate: '2026-08-04',
+    tags: 'landscape',
+    ratings: ['safe'],
+    dimensionFilter: 'all',
+    settings: { galleryLayout: 'grid', compactGrid: false, blockedTags: '' }
+  };
+
+  assert.equal(galleryViewKey(baseState), galleryViewKey({ ...baseState }));
+  assert.notEqual(galleryViewKey(baseState), galleryViewKey({ ...baseState, view: 'favorites' }));
+  assert.notEqual(galleryViewKey(baseState), galleryViewKey({
+    ...baseState,
+    settings: { ...baseState.settings, galleryLayout: 'masonry' }
+  }));
+  assert.deepEqual(clampPreviewPan(900, -500, 2, 800, 600), { x: 400, y: -300 });
+  assert.deepEqual(clampPreviewPan(120, -80, 1, 800, 600), { x: 0, y: 0 });
+});
+
 test('fallback library is authoritative until it is migrated to IndexedDB', async () => {
   const { resolveLibrarySnapshot } = await import('../public/js/storage.js');
   const databaseLibrary = {

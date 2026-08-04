@@ -191,6 +191,36 @@ export function mediaIdentity(post) {
   }
 }
 
+export function galleryViewKey(value = {}) {
+  const settings = value.settings || {};
+  return [
+    value.view || 'popular',
+    value.source || '',
+    value.mediaType || 'image',
+    value.period || '',
+    value.anchorDate || '',
+    value.tags || '',
+    Array.isArray(value.ratings) ? [...value.ratings].sort().join(',') : '',
+    value.dimensionFilter || 'all',
+    value.activeSmartCollection || '',
+    settings.galleryLayout || 'grid',
+    settings.compactGrid ? 'compact' : 'comfortable',
+    settings.blockedTags || ''
+  ].map(part => encodeURIComponent(String(part))).join('|');
+}
+
+export function clampPreviewPan(x, y, zoom, viewportWidth, viewportHeight) {
+  const scale = Math.max(1, Number(zoom) || 1);
+  const maxX = Math.max(0, (Number(viewportWidth) || 0) * (scale - 1) / 2);
+  const maxY = Math.max(0, (Number(viewportHeight) || 0) * (scale - 1) / 2);
+  const boundedX = Math.min(maxX, Math.max(-maxX, Number(x) || 0));
+  const boundedY = Math.min(maxY, Math.max(-maxY, Number(y) || 0));
+  return {
+    x: boundedX || 0,
+    y: boundedY || 0
+  };
+}
+
 export function normalizeDownloadConcurrency(value) {
   return Math.min(4, Math.max(1, Math.round(Number(value) || 2)));
 }
