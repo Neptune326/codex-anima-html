@@ -13,6 +13,7 @@ import {
   matchesDimension,
   matchesSmartCollection,
   mediaIdentity,
+  nextVideoIndex,
   parsePixivArtworkId,
   replaceCurrentTag,
   retryDelay,
@@ -59,7 +60,7 @@ const elements = {
   sectionTitle: document.querySelector('#sectionTitle'),
   sectionSubtitle: document.querySelector('#sectionSubtitle'),
   sectionIconUse: document.querySelector('#sectionIconUse'),
-  favoriteCount: document.querySelector('#favoriteCount'),
+  favoriteCounts: [...document.querySelectorAll('[data-favorite-count]')],
   resultCount: document.querySelector('#resultCount'),
   dimensionFilter: document.querySelector('#dimensionFilter'),
   layoutToggle: document.querySelector('#layoutToggle'),
@@ -74,6 +75,10 @@ const elements = {
   clearSelectionButton: document.querySelector('#clearSelectionButton'),
   refreshButton: document.querySelector('#refreshButton'),
   settingsButton: document.querySelector('#settingsButton'),
+  mobileSettingsButton: document.querySelector('#mobileSettingsButton'),
+  mobileFilterButton: document.querySelector('#mobileFilterButton'),
+  mobileFilterClose: document.querySelector('#mobileFilterClose'),
+  mobileFilterScrim: document.querySelector('#mobileFilterScrim'),
   settingsDrawer: document.querySelector('#settingsDrawer'),
   themeControl: document.querySelector('#themeControl'),
   accentOptions: document.querySelector('#accentOptions'),
@@ -563,6 +568,10 @@ function renderControls() {
   const supportsDate = source.capabilities.date;
   const supportsVideo = source.capabilities.video;
   elements.controlSurface.hidden = state.view !== 'popular';
+  elements.mobileFilterButton.hidden = state.view !== 'popular';
+  if (state.view !== 'popular') {
+    closeMobileFilters();
+  }
   elements.pixivButton.hidden = state.mediaType !== 'image';
   elements.dateFilter.classList.toggle('is-disabled', !supportsDate);
   elements.dateFilter.querySelectorAll('button, input').forEach(control => {
@@ -582,7 +591,9 @@ function renderControls() {
   elements.downloadConcurrency.value = state.settings.downloadConcurrency;
   elements.downloadNameTemplate.value = state.settings.downloadNameTemplate;
   elements.dimensionFilter.value = state.dimensionFilter;
-  elements.favoriteCount.textContent = Object.keys(state.favorites).length;
+  elements.favoriteCounts.forEach(element => {
+    element.textContent = Object.keys(state.favorites).length;
+  });
 
   renderSources();
   renderRecentSearches();
@@ -773,7 +784,9 @@ function renderGallery({ append = false } = {}) {
 
   renderHeader();
   elements.resultCount.textContent = `${rows.length} 项`;
-  elements.favoriteCount.textContent = Object.keys(state.favorites).length;
+  elements.favoriteCounts.forEach(element => {
+    element.textContent = Object.keys(state.favorites).length;
+  });
 
   if (canAppend) {
     elements.gallery.insertAdjacentHTML(
@@ -1012,6 +1025,7 @@ function applySearch() {
   addRecentSearch(state.tags);
   renderControls();
   fetchPosts({ reset: true });
+  closeMobileFilters();
 }
 
 function changeSource(sourceId) {
@@ -1340,6 +1354,11 @@ function renderPreview() {
   const poster = /\.(?:mp4|webm)(?:[?#]|$)/i.test(previewUrl)
     ? ''
     : `poster="${escapeHtml(buildMediaUrl(previewUrl))}"`;
+  const videoOrientation = Number(post.width) > Number(post.height)
+    ? 'is-landscape'
+    : Number(post.width) < Number(post.height)
+      ? 'is-portrait'
+      : 'is-square';
   previewZoom = 1;
   previewPanX = 0;
   previewPanY = 0;
@@ -1349,10 +1368,12 @@ function renderPreview() {
   elements.previewMedia.innerHTML = post.type === 'video'
     ? `
       <video
+        class="${videoOrientation}"
         src="${escapeHtml(buildMediaUrl(mediaUrl))}"
         ${poster}
         controls
         playsinline
+        preload="metadata"
         ${state.settings.autoplay ? 'autoplay' : ''}
         ${state.settings.videoMuted ? 'muted' : ''}
         ${state.settings.videoLoop ? 'loop' : ''}
@@ -1436,13 +1457,26 @@ function renderPreview() {
   if (video) {
     const savedTime = Number(state.videoProgress[favoriteKey(post)]) || 0;
     video.addEventListener('loadedmetadata', () => {
+      video.classList.remove('is-landscape', 'is-portrait', 'is-square');
+      video.classList.add(
+        video.videoWidth > video.videoHeight
+          ? 'is-landscape'
+          : video.videoWidth < video.videoHeight
+            ? 'is-portrait'
+            : 'is-square'
+      );
       if (savedTime > 0 && savedTime < video.duration - 3) {
         video.currentTime = savedTime;
       }
     }, { once: true });
     video.addEventListener('timeupdate', () => saveVideoProgress(post, video));
     video.addEventListener('pause', () => saveVideoProgress(post, video, true));
-    video.addEventListener('ended', () => saveVideoProgress(post, video, true));
+    video.addEventListener('ended', () => {
+      saveVideoProgress(post, video, true);
+      if (state.settings.videoAutoNext && !state.settings.videoLoop) {
+        playNextVideo();
+      }
+    });
   }
 }
 
@@ -1517,6 +1551,24 @@ function movePreview(step) {
   }
 }
 
+function playNextVideo() {
+  const rows = visiblePosts();
+  const nextIndex = nextVideoIndex(rows, selectedIndex);
+  if (nextIndex < 0) {
+    showToast('已经是最后一个视频');
+    return;
+  }
+
+  const post = rows[selectedIndex];
+  saveVideoProgress(post, elements.previewMedia.querySelector('video'), true);
+  selectedIndex = nextIndex;
+  renderPreview();
+
+  const nextVideo = elements.previewMedia.querySelector('video');
+  const playPromise = nextVideo?.play();
+  playPromise?.catch(() => showToast('已切换到下一个视频，请点击播放'));
+}
+
 async function copyTags(post) {
   try {
     await navigator.clipboard.writeText((post.tags || []).join(' '));
@@ -1536,6 +1588,7 @@ async function copyOriginalLink(post) {
 }
 
 function openDrawer() {
+  closeMobileFilters();
   elements.settingsDrawer.classList.add('is-open');
   elements.settingsDrawer.setAttribute('aria-hidden', 'false');
 }
@@ -1543,6 +1596,22 @@ function openDrawer() {
 function closeDrawer() {
   elements.settingsDrawer.classList.remove('is-open');
   elements.settingsDrawer.setAttribute('aria-hidden', 'true');
+}
+
+function openMobileFilters() {
+  if (state.view !== 'popular') {
+    return;
+  }
+  document.body.classList.add('mobile-filters-open');
+  elements.controlSurface.classList.add('is-mobile-open');
+  elements.mobileFilterButton.setAttribute('aria-expanded', 'true');
+  requestAnimationFrame(() => elements.tagInput.focus({ preventScroll: true }));
+}
+
+function closeMobileFilters() {
+  document.body.classList.remove('mobile-filters-open');
+  elements.controlSurface.classList.remove('is-mobile-open');
+  elements.mobileFilterButton.setAttribute('aria-expanded', 'false');
 }
 
 function shiftDate(direction) {
@@ -1715,6 +1784,7 @@ function registerEvents() {
     }
 
     if (button.dataset.view) {
+      closeMobileFilters();
       saveGalleryScrollPosition();
       state.view = button.dataset.view;
       state.activeSmartCollection = state.view === 'favorites' ? state.activeSmartCollection : '';
@@ -1737,6 +1807,7 @@ function registerEvents() {
       if (sourceHealth[button.dataset.source].status === 'error') {
         checkSourceHealth(button.dataset.source);
       }
+      closeMobileFilters();
     }
 
     if (button.dataset.mediaType) {
@@ -1950,6 +2021,10 @@ function registerEvents() {
   });
   elements.refreshButton.addEventListener('click', () => fetchPosts({ reset: true, force: true }));
   elements.settingsButton.addEventListener('click', openDrawer);
+  elements.mobileSettingsButton.addEventListener('click', openDrawer);
+  elements.mobileFilterButton.addEventListener('click', openMobileFilters);
+  elements.mobileFilterClose.addEventListener('click', closeMobileFilters);
+  elements.mobileFilterScrim.addEventListener('click', closeMobileFilters);
   document.querySelectorAll('[data-close-drawer]').forEach(button => {
     button.addEventListener('click', closeDrawer);
   });
@@ -2093,6 +2168,7 @@ function registerEvents() {
   });
 
   elements.savedSearchButton.addEventListener('click', () => {
+    closeMobileFilters();
     renderSavedSearches();
     renderSmartCollections();
     elements.savedSearchDialog.showModal();
@@ -2183,6 +2259,10 @@ function registerEvents() {
   });
 
   document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && document.body.classList.contains('mobile-filters-open')) {
+      closeMobileFilters();
+      return;
+    }
     const typing = event.target.matches('input, textarea, select');
     if (!elements.previewDialog.open || typing) {
       return;

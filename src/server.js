@@ -22,7 +22,7 @@ const SITE_HEALTH_TARGETS = Object.freeze({
   hypnohub: 'https://hypnohub.net/index.php?page=dapi&s=post&q=index&json=1&limit=1',
   tbib: 'https://tbib.org/index.php?page=dapi&s=post&q=index&json=1&limit=1',
   danbooru: 'https://danbooru.donmai.us/posts.json?limit=1',
-  sankaku: 'https://capi-v2.sankakucomplex.com/posts?limit=1',
+  sankaku: 'https://sankakuapi.com/v2/posts?limit=1&lang=en',
   safebooru: 'https://safebooru.org/index.php?page=dapi&s=post&q=index&json=1&limit=1',
   rule34: 'https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&limit=1',
   e621: 'https://e621.net/posts.json?limit=1',
@@ -54,6 +54,7 @@ const ALLOWED_HOSTS = new Set([
   'www.tbib.org',
   'danbooru.donmai.us',
   'capi-v2.sankakucomplex.com',
+  'sankakuapi.com',
   'safebooru.org',
   'www.safebooru.org',
   'api.rule34.xxx',
@@ -349,10 +350,11 @@ function safeRange(value) {
 }
 
 function upstreamHeaders(target) {
-  if (target.hostname.toLowerCase() === 'capi-v2.sankakucomplex.com') {
+  if (['capi-v2.sankakucomplex.com', 'sankakuapi.com'].includes(target.hostname.toLowerCase())) {
     return {
-      Accept: 'application/vnd.sankaku.api+json;v=2',
-      Referer: 'https://chan.sankakucomplex.com/',
+      Accept: 'application/json,text/plain,*/*',
+      Origin: 'https://www.sankakucomplex.com',
+      Referer: 'https://www.sankakucomplex.com/',
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/138.0.0.0 Safari/537.36'
     };
   }

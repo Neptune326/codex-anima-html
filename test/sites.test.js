@@ -26,6 +26,8 @@ test('site adapters build allowlisted API URLs', async () => {
   assert.equal(new URL(SOURCES.e926.buildUrl(query)).hostname, 'e926.net');
   assert.equal(new URL(SOURCES.e6ai.buildUrl(query)).hostname, 'e6ai.net');
   assert.equal(new URL(SOURCES.aibooru.buildUrl(query)).hostname, 'aibooru.online');
+  assert.equal(new URL(SOURCES.sankaku.buildUrl(query)).hostname, 'sankakuapi.com');
+  assert.equal(new URL(SOURCES.sankaku.buildUrl(query)).pathname, '/v2/posts');
   assert.equal(new URL(SOURCES.sakugabooru.buildUrl(query)).hostname, 'www.sakugabooru.com');
   assert.equal(new URL(SOURCES.derpibooru.buildUrl(query)).pathname, '/api/v1/json/search/images');
   assert.equal(new URL(SOURCES.furbooru.buildUrl(query)).hostname, 'furbooru.org');
@@ -39,6 +41,10 @@ test('site adapters build allowlisted API URLs', async () => {
   assert.equal(SOURCES.tbib.capabilities.video, false);
   assert.equal(SOURCES.gelbooru.capabilities.video, false);
   assert.equal(SOURCES.sankaku.capabilities.video, true);
+  assert.equal(SOURCES.e621.capabilities.video, false);
+  assert.equal(SOURCES.e6ai.capabilities.video, false);
+  assert.equal(SOURCES.sakugabooru.capabilities.video, false);
+  assert.equal(SOURCES.twibooru.capabilities.video, false);
   assert.equal(SOURCES.rule34.capabilities.video, false);
   assert.equal(SOURCES.e926.capabilities.video, false);
   assert.equal(SOURCES.derpibooru.capabilities.video, false);

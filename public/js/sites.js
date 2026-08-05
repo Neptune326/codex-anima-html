@@ -636,14 +636,15 @@ export const SOURCES = {
   sankaku: {
     name: 'Sankaku Channel',
     shortName: 'Sankaku',
-    home: 'https://chan.sankakucomplex.com/',
+    home: 'https://www.sankakucomplex.com/',
     description: 'Sankaku Complex 媒体频道',
     capabilities: { image: true, date: false, video: true },
     buildUrl(query) {
-      const url = new URL('https://capi-v2.sankakucomplex.com/posts');
+      const url = new URL('https://sankakuapi.com/v2/posts');
       return addSearchParams(url, {
         limit: PAGE_SIZE,
         page: query.page,
+        lang: 'en',
         tags: joinTags(query, [
           'order:popular',
           query.mediaType === 'video' ? 'video' : '-video'
@@ -664,7 +665,7 @@ export const SOURCES = {
         preview: post.preview_url || post.preview?.url,
         sample: post.sample_url || post.sample?.url,
         file: post.file_url || post.file?.url,
-        postUrl: `https://chan.sankakucomplex.com/post/show/${post.id}`,
+        postUrl: `https://www.sankakucomplex.com/posts/${post.id}`,
         extension: post.file_type || post.file?.type
       }));
     }
@@ -708,7 +709,7 @@ export const SOURCES = {
     shortName: 'e621',
     home: 'https://e621.net/',
     description: '细分标签媒体图库',
-    capabilities: { image: true, date: false, video: true },
+    capabilities: { image: true, date: false, video: false },
     buildUrl(query) {
       return buildE6Url('https://e621.net/posts.json', query);
     },
@@ -742,7 +743,7 @@ export const SOURCES = {
     shortName: 'e6AI',
     home: 'https://e6ai.net/',
     description: 'AI 生成作品的细分标签媒体图库',
-    capabilities: { image: true, date: false, video: true },
+    capabilities: { image: true, date: false, video: false },
     buildUrl(query) {
       return buildE6Url('https://e6ai.net/posts.json', query);
     },
@@ -759,7 +760,7 @@ export const SOURCES = {
     shortName: 'Sakuga',
     home: 'https://www.sakugabooru.com/',
     description: '动画作画片段与原画媒体库',
-    capabilities: { image: true, date: false, video: true },
+    capabilities: { image: true, date: false, video: false },
     buildUrl: buildSakugabooruUrl,
     buildTagUrl(query) {
       return buildMoebooruTagUrl('https://www.sakugabooru.com/tag.json', query);
@@ -809,7 +810,7 @@ export const SOURCES = {
     shortName: 'Twibooru',
     home: 'https://twibooru.org/',
     description: '公开图片与 WebM 动画标签图库',
-    capabilities: { image: true, date: false, video: true },
+    capabilities: { image: true, date: false, video: false },
     buildUrl: buildTwibooruUrl,
     parse(payload) {
       return parsePhilomena('twibooru', payload, 'posts', 'posts');

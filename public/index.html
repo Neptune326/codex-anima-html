@@ -138,7 +138,7 @@
         <button class="view-tab" type="button" data-view="favorites" role="tab" aria-selected="false">
           <svg class="icon"><use href="#icon-favorite"></use></svg>
           <span>收藏</span>
-          <span class="tab-count" id="favoriteCount">0</span>
+          <span class="tab-count" data-favorite-count>0</span>
         </button>
         <button class="view-tab" type="button" data-view="history" role="tab" aria-selected="false">
           <svg class="icon"><use href="#icon-history"></use></svg>
@@ -157,7 +157,19 @@
       </div>
     </header>
 
+    <button class="mobile-filter-scrim" id="mobileFilterScrim" type="button" aria-label="关闭筛选面板"></button>
+
     <section class="control-surface" id="controlSurface">
+      <header class="mobile-filter-header">
+        <div>
+          <strong>筛选与搜索</strong>
+          <span>调整媒体、站点和标签</span>
+        </div>
+        <button class="icon-button" id="mobileFilterClose" type="button" title="关闭筛选面板">
+          <svg class="icon"><use href="#icon-close"></use></svg>
+        </button>
+      </header>
+
       <div class="media-mode-row">
         <div class="media-mode-heading">
           <span class="control-label">内容类型</span>
@@ -195,16 +207,17 @@
               id="tagInput"
               type="search"
               autocomplete="off"
-              placeholder="搜索标签，-tag 排除"
+              placeholder="输入英文标签，如 blue_hair；排除用 -text"
               aria-label="搜索标签"
               aria-autocomplete="list"
               aria-controls="tagSuggestions"
             >
-            <button class="search-help" id="searchHelp" type="button" title="搜索语法">
+            <button class="search-help" id="searchHelp" type="button" title="查看标签搜索说明">
               <svg class="icon"><use href="#icon-help"></use></svg>
             </button>
             <button class="search-submit" type="submit">搜索</button>
           </form>
+          <p class="search-guidance">标签用于筛选当前站点内容；空格表示同时包含，<code>-标签</code>表示排除。</p>
           <div class="tag-suggestions" id="tagSuggestions" role="listbox" hidden></div>
           <div class="syntax-help" id="syntaxHelp" hidden>
             <strong>搜索语法</strong>
@@ -270,6 +283,10 @@
           </div>
         </div>
         <div class="section-actions">
+          <button class="mobile-filter-button" id="mobileFilterButton" type="button" aria-expanded="false" aria-controls="controlSurface">
+            <svg class="icon"><use href="#icon-tune"></use></svg>
+            筛选
+          </button>
           <label class="compact-select">
             <span>尺寸</span>
             <select id="dimensionFilter">
@@ -309,6 +326,28 @@
       <div id="loadSentinel" aria-hidden="true"></div>
     </main>
   </div>
+
+  <nav class="mobile-bottom-nav" aria-label="移动端内容导航">
+    <button class="mobile-nav-item is-active" type="button" data-view="popular" aria-selected="true">
+      <svg class="icon"><use href="#icon-fire"></use></svg>
+      <span>热门</span>
+    </button>
+    <button class="mobile-nav-item" type="button" data-view="favorites" aria-selected="false">
+      <span class="mobile-nav-icon">
+        <svg class="icon"><use href="#icon-favorite"></use></svg>
+        <span class="mobile-nav-badge" data-favorite-count>0</span>
+      </span>
+      <span>收藏</span>
+    </button>
+    <button class="mobile-nav-item" type="button" data-view="history" aria-selected="false">
+      <svg class="icon"><use href="#icon-history"></use></svg>
+      <span>历史</span>
+    </button>
+    <button class="mobile-nav-item" id="mobileSettingsButton" type="button">
+      <svg class="icon"><use href="#icon-tune"></use></svg>
+      <span>设置</span>
+    </button>
+  </nav>
 
   <button class="fab" id="backToTop" type="button" title="返回顶部" hidden>
     <svg class="icon"><use href="#icon-arrow-up"></use></svg>
@@ -356,6 +395,10 @@
         <label class="setting-row">
           <span><strong>视频自动播放</strong><small>打开视频后静音自动播放</small></span>
           <input type="checkbox" data-setting="autoplay">
+        </label>
+        <label class="setting-row">
+          <span><strong>自动播放下一个视频</strong><small>当前视频结束后跳过图片并播放下一个视频</small></span>
+          <input type="checkbox" data-setting="videoAutoNext">
         </label>
         <label class="setting-row">
           <span><strong>视频默认静音</strong><small>自动播放时建议保持开启</small></span>

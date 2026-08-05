@@ -25,6 +25,7 @@ export const DEFAULT_STATE = {
     accent: 'blue',
     hideDetails: false,
     autoplay: true,
+    videoAutoNext: true,
     videoMuted: true,
     videoLoop: false,
     blurSensitive: true,

@@ -104,9 +104,14 @@ test('media requests use safe ranges and source-aware referers', () => {
 });
 
 test('Sankaku API requests use browser-compatible headers', () => {
-  const headers = upstreamHeaders(new URL('https://capi-v2.sankakucomplex.com/posts'));
-  assert.equal(headers.Accept, 'application/vnd.sankaku.api+json;v=2');
-  assert.equal(headers.Referer, 'https://chan.sankakucomplex.com/');
+  const headers = upstreamHeaders(new URL('https://sankakuapi.com/v2/posts'));
+  assert.equal(headers.Accept, 'application/json,text/plain,*/*');
+  assert.equal(headers.Origin, 'https://www.sankakucomplex.com');
+  assert.equal(headers.Referer, 'https://www.sankakucomplex.com/');
+  assert.equal(
+    upstreamHeaders(new URL('https://capi-v2.sankakucomplex.com/posts')).Origin,
+    'https://www.sankakucomplex.com'
+  );
   assert.match(headers['User-Agent'], /^Mozilla\/5\.0/);
   assert.deepEqual(upstreamHeaders(new URL('https://danbooru.donmai.us/posts.json')), {});
 });
@@ -170,6 +175,11 @@ test('server serves health and static resources without hanging sockets', async 
     );
     assert.match(page.body, /Atlas Gallery/);
     assert.match(page.body, /放大后拖拽平移/);
+    assert.match(page.body, /class="mobile-bottom-nav"/);
+    assert.match(page.body, /id="mobileFilterButton"/);
+    assert.match(page.body, /id="mobileFilterClose"/);
+    assert.match(page.body, /data-setting="videoAutoNext"/);
+    assert.match(page.body, /class="search-guidance"/);
 
     const module = await request(server, '/js/app.js', 'HEAD');
     assert.equal(module.status, 200);
@@ -180,15 +190,23 @@ test('server serves health and static resources without hanging sockets', async 
     assert.match(appScript.body, /copyOriginalLink/);
     assert.match(appScript.body, /pointermove/);
     assert.match(appScript.body, /galleryViewKey/);
+    assert.match(appScript.body, /openMobileFilters/);
+    assert.match(appScript.body, /closeMobileFilters/);
+    assert.match(appScript.body, /playNextVideo/);
+    assert.match(appScript.body, /video\.videoWidth > video\.videoHeight/);
 
     const styles = await request(server, '/css/styles.css');
     assert.equal(styles.status, 200);
     assert.match(styles.body, /\[hidden\]\s*\{\s*display:\s*none\s*!important;/);
     assert.match(styles.body, /\.source-scroller\s*\{[^}]*flex-wrap:\s*wrap;/s);
     assert.match(styles.body, /\.source-scroller\s*\{[^}]*overflow:\s*visible;/s);
-    assert.doesNotMatch(styles.body, /\.source-scroller\s*\{[^}]*overflow-x:\s*auto;/s);
+    assert.match(styles.body, /@media \(max-width:\s*640px\)[\s\S]*\.mobile-bottom-nav\s*\{[^}]*position:\s*fixed;/s);
+    assert.match(styles.body, /@media \(max-width:\s*640px\)[\s\S]*\.source-scroller\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\);/s);
+    assert.match(styles.body, /\.control-surface\.is-mobile-open\s*\{[^}]*transform:\s*translateY\(0\)/s);
     assert.match(styles.body, /content-visibility:\s*auto/);
     assert.match(styles.body, /cursor:\s*grab/);
+    assert.match(styles.body, /\.preview-media video\.is-landscape[\s\S]*width:\s*100%;[\s\S]*height:\s*auto;/);
+    assert.match(styles.body, /\.preview-media video\.is-portrait\s*\{[^}]*height:\s*100%;/s);
 
     const missing = await request(server, '/missing-resource');
     assert.equal(missing.status, 404);
@@ -246,6 +264,14 @@ test('new source APIs and media CDN hosts are allowlisted explicitly', () => {
   assert.equal(
     validateTarget('https://twibooru.org/api/v3/search/posts').hostname,
     'twibooru.org'
+  );
+  assert.equal(
+    validateTarget('https://sankakuapi.com/v2/posts').hostname,
+    'sankakuapi.com'
+  );
+  assert.equal(
+    validateTarget('https://capi-v2.sankakucomplex.com/posts').hostname,
+    'capi-v2.sankakucomplex.com'
   );
   assert.equal(
     validateTarget('https://www.sakugabooru.com/post.json').hostname,

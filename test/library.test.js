@@ -112,6 +112,20 @@ test('gallery view keys isolate scroll positions and preview panning stays bound
   assert.deepEqual(clampPreviewPan(120, -80, 1, 800, 600), { x: 0, y: 0 });
 });
 
+test('nextVideoIndex skips images and finds the next playable video', async () => {
+  const { nextVideoIndex } = await import('../public/js/library.js');
+  const posts = [
+    { type: 'video' },
+    { type: 'image' },
+    { type: 'video' },
+    { type: 'image' }
+  ];
+
+  assert.equal(nextVideoIndex(posts, 0), 2);
+  assert.equal(nextVideoIndex(posts, 2), -1);
+  assert.equal(nextVideoIndex(null, 0), -1);
+});
+
 test('fallback library is authoritative until it is migrated to IndexedDB', async () => {
   const { resolveLibrarySnapshot } = await import('../public/js/storage.js');
   const databaseLibrary = {

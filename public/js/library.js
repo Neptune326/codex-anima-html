@@ -107,6 +107,14 @@ export function retryDelay(retryNumber) {
   return retryNumber <= 1 ? 500 : 1500;
 }
 
+export function nextVideoIndex(posts, currentIndex) {
+  if (!Array.isArray(posts)) {
+    return -1;
+  }
+
+  return posts.findIndex((post, index) => index > currentIndex && post?.type === 'video');
+}
+
 export function parsePixivArtworkId(value) {
   const input = String(value || '').trim();
 
