@@ -153,11 +153,50 @@ backup_server_configuration() {
   local paths=()
   [[ -e "${ENV_DIR}" ]] && paths+=("${ENV_DIR}")
   [[ -e "${SERVICE_FILE}" ]] && paths+=("${SERVICE_FILE}")
+  [[ -e /etc/nginx/nginx.conf ]] && paths+=("/etc/nginx/nginx.conf")
   [[ -e "${NGINX_SITE}" ]] && paths+=("${NGINX_SITE}")
   if (( ${#paths[@]} > 0 )); then
     tar -czf "${archive}" "${paths[@]}"
     log "服务器配置已备份到 ${archive}。"
   fi
+}
+
+remove_conflicting_nginx_defaults() {
+  local timestamp
+  local backup_root
+  local candidate
+  local resolved
+  local destination
+  local search_targets=(/etc/nginx/nginx.conf)
+  local candidates=()
+  local processed_paths=$'\n'
+
+  [[ -d /etc/nginx/conf.d ]] && search_targets+=(/etc/nginx/conf.d)
+  [[ -d /etc/nginx/sites-enabled ]] && search_targets+=(/etc/nginx/sites-enabled)
+  mapfile -t candidates < <(
+    grep -RIlE \
+      'listen[[:space:]]+([^;[:space:]]+:)?59886([^;]*)default_server' \
+      "${search_targets[@]}" 2>/dev/null || true
+  )
+
+  timestamp="$(date +%Y%m%d-%H%M%S)"
+  backup_root="${BACKUP_DIR}/nginx-default-migration-${timestamp}"
+  for candidate in "${candidates[@]}"; do
+    resolved="$(readlink -f "${candidate}")"
+    [[ -n "${resolved}" && "${resolved}" == /etc/nginx/* ]] \
+      || fail "检测到无法安全处理的 Nginx 配置：${candidate}"
+    [[ "${resolved}" == "${NGINX_SITE}" ]] && continue
+    [[ "${processed_paths}" != *$'\n'"${resolved}"$'\n'* ]] || continue
+    processed_paths+="${resolved}"$'\n'
+
+    destination="${backup_root}${resolved}"
+    install -d -m 0700 "$(dirname "${destination}")"
+    cp -a -- "${resolved}" "${destination}"
+    sed -E -i \
+      '/listen[[:space:]]+([^;[:space:]]+:)?59886([^;]*)default_server/ s/[[:space:]]+default_server//g' \
+      "${resolved}"
+    log "已移除旧默认主机冲突：${resolved}；备份：${destination}。"
+  done
 }
 
 install_configuration() {
@@ -172,6 +211,7 @@ install_configuration() {
   install -o root -g root -m 0644 "${INSTALL_DIR}/deploy/nginx-atlas-gallery.conf" "${NGINX_SITE}"
   ln -sfn "${NGINX_SITE}" "${NGINX_LINK}"
   rm -f /etc/nginx/sites-enabled/default
+  remove_conflicting_nginx_defaults
 }
 
 run_project_checks() {

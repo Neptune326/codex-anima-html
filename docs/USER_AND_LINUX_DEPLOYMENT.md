@@ -194,6 +194,8 @@ sudo bash atlas-gallery.sh
 
 更新完成时，脚本会同时校验 API 版本与 Nginx 返回的页面资源版本。生产配置要求浏览器每次重新验证 HTML、CSS、JavaScript，避免继续显示旧版移动端界面。
 
+服务器旧配置已将 `59886` 声明为 `default_server` 时，脚本会先将对应 Nginx 文件备份到 `/var/backups/atlas-gallery/nginx-default-migration-时间/`，再移除旧声明中的 `default_server` 标记，由 Atlas Gallery 配置统一接管该端口。
+
 ## 9. 日常运维与故障排查
 
 查看服务状态和日志：

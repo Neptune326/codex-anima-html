@@ -241,6 +241,9 @@ test('Linux deployment script auto-detects install or forced update with Chinese
   assert.match(script, /fetch --all --force --prune --tags/);
   assert.match(script, /reset --hard "origin\/\$\{BRANCH\}"/);
   assert.match(script, /clean -fd/);
+  assert.match(script, /remove_conflicting_nginx_defaults/);
+  assert.match(script, /nginx-default-migration-/);
+  assert.match(script, /已移除旧默认主机冲突/);
   assert.match(script, /开始：%s/);
   assert.match(script, /完成：%s/);
   assert.match(script, /最终结果：执行成功/);
