@@ -2,6 +2,16 @@
 
 本文档适用于 Atlas Gallery `2.8.0`，示例系统为 Ubuntu `22.04/24.04` 或 Debian `12`。部署完成后，唯一的公网业务入口为 TCP `59886`：Nginx 监听 `59886` 并提供静态文件，将 `/api/` 转发到仅监听 `127.0.0.1:4173` 的 Node 服务。不要向公网开放 `80`、`443` 或 `4173`。
 
+## 一键部署
+
+全新服务器以具备 `sudo` 权限的用户执行：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Neptune326/codex-anima-html/main/deploy/atlas-gallery.sh -o /tmp/atlas-gallery.sh && sudo bash /tmp/atlas-gallery.sh install
+```
+
+脚本会安装 Git、Nginx、curl、Node.js，创建专用用户，拉取代码，安装 systemd/Nginx 配置，运行检查与测试，并验证 `4173` 和 `59886` 的本机健康状态。已有 `/etc/atlas-gallery/atlas-gallery.env` 时不会覆盖，服务器仓库存在未提交修改时会停止更新。
+
 ## 1. 部署结构
 
 - Nginx：监听 `0.0.0.0:59886` 和 `[::]:59886`，提供 `public/` 静态文件。
@@ -174,21 +184,10 @@ curl --fail http://your-server-ip:59886/api/health
 ## 8. 更新部署
 
 ```bash
-cd /opt/codex-anima-html
-sudo -u atlas-gallery git status --short
-sudo -u atlas-gallery git pull --ff-only
-npm run check
-npm test
-sudo systemctl restart atlas-gallery
-sudo install -m 0644 \
-  deploy/nginx-atlas-gallery.conf \
-  /etc/nginx/sites-available/atlas-gallery
-sudo nginx -t
-sudo systemctl reload nginx
-curl --fail http://127.0.0.1:59886/api/health
+sudo bash /opt/codex-anima-html/deploy/atlas-gallery.sh update
 ```
 
-服务器工作区存在本地代码修改时，先处理这些修改，再执行 `git pull --ff-only`。
+脚本先将服务器配置备份到 `/var/backups/atlas-gallery/`，再以 `--ff-only` 方式更新 `origin/main`，重新安装服务模板、运行检查与测试、重启服务并执行健康检查。服务器工作区存在本地代码修改时，脚本会停止更新且不会覆盖修改。
 
 ## 9. 日常运维与故障排查
 

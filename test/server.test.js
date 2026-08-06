@@ -180,6 +180,9 @@ test('server serves health and static resources without hanging sockets', async 
     assert.match(page.body, /id="mobileFilterClose"/);
     assert.match(page.body, /data-setting="videoAutoNext"/);
     assert.match(page.body, /class="search-guidance"/);
+    assert.match(page.body, /class="friend-links"/);
+    assert.match(page.body, /href="https:\/\/hanime1\.me\/"/);
+    assert.match(page.body, /target="_blank" rel="noopener noreferrer"/);
 
     const module = await request(server, '/js/app.js', 'HEAD');
     assert.equal(module.status, 200);
@@ -207,6 +210,8 @@ test('server serves health and static resources without hanging sockets', async 
     assert.match(styles.body, /cursor:\s*grab/);
     assert.match(styles.body, /\.preview-media video\.is-landscape[\s\S]*width:\s*100%;[\s\S]*height:\s*auto;/);
     assert.match(styles.body, /\.preview-media video\.is-portrait\s*\{[^}]*height:\s*100%;/s);
+    assert.match(styles.body, /\.friend-links-grid\s*\{[^}]*grid-template-columns:\s*repeat\(auto-fit,/s);
+    assert.match(styles.body, /@media \(max-width:\s*640px\)[\s\S]*\.friend-links-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\);/s);
 
     const missing = await request(server, '/missing-resource');
     assert.equal(missing.status, 404);
@@ -214,6 +219,21 @@ test('server serves health and static resources without hanging sockets', async 
   } finally {
     await closeServer(server);
   }
+});
+
+test('Linux deployment script supports safe install and update flows', () => {
+  const script = fs.readFileSync(
+    path.join(__dirname, '..', 'deploy', 'atlas-gallery.sh'),
+    'utf8'
+  );
+
+  assert.match(script, /set -Eeuo pipefail/);
+  assert.match(script, /install\) install_app/);
+  assert.match(script, /update\) update_app/);
+  assert.match(script, /merge --ff-only/);
+  assert.match(script, /status --porcelain/);
+  assert.match(script, /127\.0\.0\.1:59886\/api\/health/);
+  assert.doesNotMatch(script, /git reset --hard/);
 });
 
 test('new source APIs and media CDN hosts are allowlisted explicitly', () => {

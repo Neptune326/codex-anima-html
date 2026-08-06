@@ -1317,6 +1317,101 @@ button:active:not(:disabled) {
   text-align: center;
 }
 
+.friend-links {
+  margin-top: 40px;
+  padding: 22px;
+  border: 1px solid var(--outline-variant);
+  border-radius: 20px;
+  background: var(--surface-container-low);
+}
+
+.friend-links-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.friend-links-heading h2,
+.friend-links-heading p {
+  margin: 0;
+}
+
+.friend-links-heading h2 {
+  font-size: 18px;
+  font-weight: 650;
+}
+
+.friend-links-heading p {
+  margin-top: 3px;
+  color: var(--on-surface-variant);
+  font-size: 12px;
+}
+
+.friend-links-heading > .icon {
+  color: var(--primary);
+}
+
+.friend-links-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px;
+}
+
+.friend-link {
+  display: flex;
+  min-width: 0;
+  min-height: 64px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 14px;
+  border: 1px solid var(--outline-variant);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--on-surface);
+  text-decoration: none;
+  transition: border-color var(--motion-duration), box-shadow var(--motion-duration), transform var(--motion-duration);
+}
+
+.friend-link:hover {
+  border-color: var(--primary);
+  box-shadow: var(--shadow);
+  transform: translateY(-2px);
+}
+
+.friend-link span,
+.friend-link strong,
+.friend-link small {
+  display: block;
+  min-width: 0;
+}
+
+.friend-link span {
+  overflow: hidden;
+}
+
+.friend-link strong,
+.friend-link small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.friend-link small {
+  margin-top: 3px;
+  color: var(--on-surface-variant);
+  font-size: 11px;
+}
+
+.friend-link > .icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  color: var(--primary);
+}
+
 .fab {
   position: fixed;
   z-index: 18;
@@ -2941,6 +3036,22 @@ dialog::backdrop {
   .main-content {
     min-height: calc(100dvh - 56px);
     padding: 16px 12px calc(var(--mobile-nav-height) + 24px + env(safe-area-inset-bottom));
+  }
+
+  .friend-links {
+    margin-top: 28px;
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .friend-links-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .friend-link {
+    min-height: 56px;
+    padding: 9px 12px;
   }
 
   .section-header {
