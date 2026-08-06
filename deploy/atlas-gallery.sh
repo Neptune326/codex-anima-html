@@ -201,17 +201,43 @@ wait_for_health() {
   fail "健康检查失败：${url}"
 }
 
+json_version() {
+  local payload="$1"
+  printf '%s' "${payload}" | node -e '
+    let input = "";
+    process.stdin.on("data", chunk => { input += chunk; });
+    process.stdin.on("end", () => {
+      try {
+        process.stdout.write(String(JSON.parse(input).version || ""));
+      } catch {
+        process.stdout.write("");
+      }
+    });
+  '
+}
+
 verify_deployment() {
   local expected_version
-  local health_response
+  local direct_health_response
+  local direct_version
+  local nginx_health_response
+  local nginx_version
   local index_html
   expected_version="$(run_as_app node -p "require('${INSTALL_DIR}/package.json').version")"
   wait_for_health "http://127.0.0.1:4173/api/health"
   wait_for_health "http://127.0.0.1:59886/api/health"
-  health_response="$(curl --fail --silent --show-error --max-time 5 http://127.0.0.1:59886/api/health)"
+  direct_health_response="$(curl --fail --silent --show-error --max-time 5 http://127.0.0.1:4173/api/health)"
+  nginx_health_response="$(curl --fail --silent --show-error --max-time 5 http://127.0.0.1:59886/api/health)"
+  direct_version="$(json_version "${direct_health_response}")"
+  nginx_version="$(json_version "${nginx_health_response}")"
   index_html="$(curl --fail --silent --show-error --max-time 5 http://127.0.0.1:59886/)"
-  [[ "${health_response}" == *"\"version\":\"${expected_version}\""* ]] \
-    || fail "Nginx 返回的服务版本与仓库版本不一致。"
+  log "版本对比：仓库=${expected_version}，Node=${direct_version:-无法识别}，Nginx=${nginx_version:-无法识别}。"
+  [[ "${direct_version}" == "${expected_version}" ]] \
+    || fail "Node 服务版本与仓库版本不一致。"
+  if [[ "${nginx_version}" != "${expected_version}" ]]; then
+    log "请执行：sudo nginx -T 2>/dev/null | grep -nE 'listen.*59886|server_name|root |proxy_pass'"
+    fail "Nginx 59886 命中了其他旧配置，返回版本与仓库版本不一致。"
+  fi
   [[ "${index_html}" == *"/css/styles.css?v=${expected_version}"* ]] \
     || fail "Nginx 返回的页面资源版本与仓库版本不一致。"
 }

@@ -213,6 +213,16 @@ sudo systemctl restart atlas-gallery
 sudo journalctl -u atlas-gallery -n 100 --no-pager
 ```
 
+脚本提示 Nginx 服务版本与仓库版本不一致：
+
+```bash
+curl --fail http://127.0.0.1:4173/api/health
+curl --fail http://127.0.0.1:59886/api/health
+sudo nginx -T 2>/dev/null | grep -nE 'listen.*59886|server_name|root |proxy_pass'
+```
+
+两个健康接口的 `version` 不同，表示 `59886` 命中了其他旧 Nginx 虚拟主机。检查 `/etc/nginx/sites-enabled/` 中同时监听 `59886` 的旧配置，停用冲突配置后重新执行脚本。
+
 外部无法访问 `59886`：
 
 ```bash

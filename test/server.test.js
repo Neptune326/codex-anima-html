@@ -246,6 +246,9 @@ test('Linux deployment script auto-detects install or forced update with Chinese
   assert.match(script, /最终结果：执行成功/);
   assert.match(script, /最终结果：执行失败/);
   assert.match(script, /127\.0\.0\.1:59886\/api\/health/);
+  assert.match(script, /版本对比：仓库=/);
+  assert.match(script, /Node 服务版本与仓库版本不一致/);
+  assert.match(script, /Nginx 59886 命中了其他旧配置/);
   assert.match(script, /页面资源版本与仓库版本不一致/);
 });
 
@@ -257,6 +260,9 @@ test('production Nginx config revalidates interface assets without dropping secu
 
   assert.match(config, /location \/css\/\s*\{\s*expires -1;/);
   assert.match(config, /location \/js\/\s*\{\s*expires -1;/);
+  assert.match(config, /listen 59886 default_server;/);
+  assert.match(config, /listen \[::\]:59886 default_server;/);
+  assert.match(config, /server_name _;/);
   assert.doesNotMatch(config, /expires 5m/);
   assert.doesNotMatch(config, /location \/(?:css|js)\/[\s\S]*?add_header/);
 });
