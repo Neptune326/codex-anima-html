@@ -202,8 +202,18 @@ wait_for_health() {
 }
 
 verify_deployment() {
+  local expected_version
+  local health_response
+  local index_html
+  expected_version="$(run_as_app node -p "require('${INSTALL_DIR}/package.json').version")"
   wait_for_health "http://127.0.0.1:4173/api/health"
   wait_for_health "http://127.0.0.1:59886/api/health"
+  health_response="$(curl --fail --silent --show-error --max-time 5 http://127.0.0.1:59886/api/health)"
+  index_html="$(curl --fail --silent --show-error --max-time 5 http://127.0.0.1:59886/)"
+  [[ "${health_response}" == *"\"version\":\"${expected_version}\""* ]] \
+    || fail "Nginx 返回的服务版本与仓库版本不一致。"
+  [[ "${index_html}" == *"/css/styles.css?v=${expected_version}"* ]] \
+    || fail "Nginx 返回的页面资源版本与仓库版本不一致。"
 }
 
 prepare_install() {

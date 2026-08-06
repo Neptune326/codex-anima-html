@@ -1318,7 +1318,7 @@ button:active:not(:disabled) {
 }
 
 .friend-links {
-  margin-top: 40px;
+  margin-top: 0;
   padding: 22px;
   border: 1px solid var(--outline-variant);
   border-radius: 20px;
@@ -2758,7 +2758,7 @@ dialog::backdrop {
     left: 0;
     display: grid;
     min-height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     padding: 5px 8px env(safe-area-inset-bottom);
     border-top: 1px solid var(--outline-variant);
     background: color-mix(in srgb, var(--surface) 96%, transparent);
@@ -3039,7 +3039,7 @@ dialog::backdrop {
   }
 
   .friend-links {
-    margin-top: 28px;
+    margin-top: 0;
     padding: 16px;
     border-radius: 18px;
   }

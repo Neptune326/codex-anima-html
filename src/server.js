@@ -591,9 +591,10 @@ function serveStatic(publicDirectory, pathname, response, method) {
   const extension = path.extname(staticPath).toLowerCase();
   const contentType = MIME_TYPES[extension] || 'application/octet-stream';
 
+  const noStore = ['.html', '.css', '.js'].includes(extension);
   response.writeHead(200, {
     'Content-Type': contentType,
-    'Cache-Control': extension === '.html' ? 'no-cache' : 'public, max-age=300',
+    'Cache-Control': noStore ? 'no-store, no-cache, must-revalidate' : 'public, max-age=300',
     'Content-Security-Policy': [
       "default-src 'self'",
       "img-src 'self' https: data: blob:",

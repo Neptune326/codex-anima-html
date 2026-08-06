@@ -157,7 +157,7 @@ test('server serves health and static resources without hanging sockets', async 
     assert.equal(health.status, 200);
     assert.deepEqual(JSON.parse(health.body), {
       ok: true,
-      version: '2.8.0',
+      version: '2.8.1',
       proxyMode: app.proxyMode
     });
 
@@ -181,6 +181,9 @@ test('server serves health and static resources without hanging sockets', async 
     assert.match(page.body, /data-setting="videoAutoNext"/);
     assert.match(page.body, /class="search-guidance"/);
     assert.match(page.body, /class="friend-links"/);
+    assert.match(page.body, /data-view="links"/);
+    assert.match(page.body, /id="friendLinks"[^>]*hidden/);
+    assert.match(page.body, /styles\.css\?v=2\.8\.1/);
     assert.match(page.body, /href="https:\/\/hanime1\.me\/"/);
     assert.match(page.body, /target="_blank" rel="noopener noreferrer"/);
 
@@ -197,6 +200,9 @@ test('server serves health and static resources without hanging sockets', async 
     assert.match(appScript.body, /closeMobileFilters/);
     assert.match(appScript.body, /playNextVideo/);
     assert.match(appScript.body, /video\.videoWidth > video\.videoHeight/);
+    assert.match(appScript.body, /state\.view === 'links'/);
+    assert.match(appScript.body, /friendLinks\.hidden = !linksView/);
+    assert.match(appScript.headers['cache-control'], /no-store/);
 
     const styles = await request(server, '/css/styles.css');
     assert.equal(styles.status, 200);
@@ -212,6 +218,7 @@ test('server serves health and static resources without hanging sockets', async 
     assert.match(styles.body, /\.preview-media video\.is-portrait\s*\{[^}]*height:\s*100%;/s);
     assert.match(styles.body, /\.friend-links-grid\s*\{[^}]*grid-template-columns:\s*repeat\(auto-fit,/s);
     assert.match(styles.body, /@media \(max-width:\s*640px\)[\s\S]*\.friend-links-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\);/s);
+    assert.match(styles.body, /grid-template-columns:\s*repeat\(5,\s*minmax\(0,\s*1fr\)\)/);
 
     const missing = await request(server, '/missing-resource');
     assert.equal(missing.status, 404);
@@ -239,6 +246,19 @@ test('Linux deployment script auto-detects install or forced update with Chinese
   assert.match(script, /最终结果：执行成功/);
   assert.match(script, /最终结果：执行失败/);
   assert.match(script, /127\.0\.0\.1:59886\/api\/health/);
+  assert.match(script, /页面资源版本与仓库版本不一致/);
+});
+
+test('production Nginx config revalidates interface assets without dropping security headers', () => {
+  const config = fs.readFileSync(
+    path.join(__dirname, '..', 'deploy', 'nginx-atlas-gallery.conf'),
+    'utf8'
+  );
+
+  assert.match(config, /location \/css\/\s*\{\s*expires -1;/);
+  assert.match(config, /location \/js\/\s*\{\s*expires -1;/);
+  assert.doesNotMatch(config, /expires 5m/);
+  assert.doesNotMatch(config, /location \/(?:css|js)\/[\s\S]*?add_header/);
 });
 
 test('new source APIs and media CDN hosts are allowlisted explicitly', () => {

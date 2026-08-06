@@ -4,7 +4,7 @@ import {
   createQuery,
   getSource,
   ratingName
-} from './sites.js';
+} from './sites.js?v=2.8.1';
 import {
   clampPreviewPan,
   downloadFilename,
@@ -22,7 +22,7 @@ import {
   sourceSupportsMedia,
   suggestTags,
   translateTag
-} from './library.js';
+} from './library.js?v=2.8.1';
 import {
   exportLibrary,
   hydrateLibrary,
@@ -31,7 +31,7 @@ import {
   resetState,
   saveLibrary,
   saveState
-} from './storage.js';
+} from './storage.js?v=2.8.1';
 
 const elements = {
   sourceList: document.querySelector('#sourceList'),
@@ -60,11 +60,14 @@ const elements = {
   sectionTitle: document.querySelector('#sectionTitle'),
   sectionSubtitle: document.querySelector('#sectionSubtitle'),
   sectionIconUse: document.querySelector('#sectionIconUse'),
+  sectionActions: document.querySelector('#sectionActions'),
   favoriteCounts: [...document.querySelectorAll('[data-favorite-count]')],
   resultCount: document.querySelector('#resultCount'),
   dimensionFilter: document.querySelector('#dimensionFilter'),
   layoutToggle: document.querySelector('#layoutToggle'),
   gallery: document.querySelector('#gallery'),
+  galleryView: document.querySelector('#galleryView'),
+  friendLinks: document.querySelector('#friendLinks'),
   loadingMore: document.querySelector('#loadingMore'),
   loadSentinel: document.querySelector('#loadSentinel'),
   collectionTools: document.querySelector('#collectionTools'),
@@ -569,6 +572,11 @@ function renderControls() {
   const supportsVideo = source.capabilities.video;
   elements.controlSurface.hidden = state.view !== 'popular';
   elements.mobileFilterButton.hidden = state.view !== 'popular';
+  const linksView = state.view === 'links';
+  elements.galleryView.hidden = linksView;
+  elements.friendLinks.hidden = !linksView;
+  elements.sectionActions.hidden = linksView;
+  elements.refreshButton.hidden = linksView;
   if (state.view !== 'popular') {
     closeMobileFilters();
   }
@@ -622,6 +630,13 @@ function createRipple(event, button) {
 }
 
 function renderHeader() {
+  if (state.view === 'links') {
+    elements.sectionTitle.textContent = '友情链接';
+    elements.sectionSubtitle.textContent = '直接访问推荐的插画与动画站点';
+    elements.sectionIconUse.setAttribute('href', '#icon-external');
+    return;
+  }
+
   if (state.view === 'favorites') {
     elements.sectionTitle.textContent = '我的收藏';
     elements.sectionSubtitle.textContent = '收藏已持久化保存，可筛选并批量下载';
@@ -771,6 +786,12 @@ function renderBatchToolbar() {
 }
 
 function renderGallery({ append = false } = {}) {
+  if (state.view === 'links') {
+    renderHeader();
+    restoreGalleryScrollPosition();
+    return;
+  }
+
   const rows = visiblePosts();
   const renderedRows = rows.slice(0, renderLimit);
   const existingCards = [...elements.gallery.querySelectorAll('.media-card')];
@@ -943,7 +964,7 @@ function filterPosts(rows) {
 }
 
 async function fetchPosts({ reset = false, force = false } = {}) {
-  if (state.view === 'favorites' || isLoading && !reset || !hasMore && !reset) {
+  if (state.view !== 'popular' || isLoading && !reset || !hasMore && !reset) {
     return;
   }
 
@@ -2332,6 +2353,9 @@ async function initialize() {
 
   const observer = new IntersectionObserver(entries => {
     if (entries[0].isIntersecting) {
+      if (state.view === 'links') {
+        return;
+      }
       const rows = visiblePosts();
       if (renderLimit < rows.length) {
         renderLimit += 40;

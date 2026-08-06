@@ -1,7 +1,7 @@
 import {
   normalizeDownloadConcurrency,
   normalizeDownloadNameTemplate
-} from './library.js';
+} from './library.js?v=2.8.1';
 
 const STORAGE_KEY = 'atlas-gallery-v2';
 const LEGACY_STORAGE_KEY = 'atlas-gallery';

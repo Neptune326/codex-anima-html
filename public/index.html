@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="light dark">
   <meta name="description" content="多站点图片与视频图库浏览器">
   <title>Atlas Gallery</title>
-  <link rel="stylesheet" href="/css/styles.css?v=2.8.0">
+  <link rel="stylesheet" href="/css/styles.css?v=2.8.1">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true">
@@ -143,6 +143,10 @@
         <button class="view-tab" type="button" data-view="history" role="tab" aria-selected="false">
           <svg class="icon"><use href="#icon-history"></use></svg>
           <span>历史</span>
+        </button>
+        <button class="view-tab" type="button" data-view="links" role="tab" aria-selected="false">
+          <svg class="icon"><use href="#icon-external"></use></svg>
+          <span>友链</span>
         </button>
       </nav>
 
@@ -282,7 +286,7 @@
             <p id="sectionSubtitle">按热度浏览多个站点的图片与视频</p>
           </div>
         </div>
-        <div class="section-actions">
+        <div class="section-actions" id="sectionActions">
           <button class="mobile-filter-button" id="mobileFilterButton" type="button" aria-expanded="false" aria-controls="controlSurface">
             <svg class="icon"><use href="#icon-tune"></use></svg>
             筛选
@@ -309,26 +313,28 @@
         </div>
       </header>
 
-      <div class="collection-tools" id="collectionTools" hidden></div>
+      <div id="galleryView">
+        <div class="collection-tools" id="collectionTools" hidden></div>
 
-      <div class="batch-toolbar" id="batchToolbar" hidden>
-        <span id="selectionCount">已选择 0 项</span>
-        <button class="text-button" id="selectVisibleButton" type="button">选择当前结果</button>
-        <button class="filled-button" id="downloadSelectedButton" type="button">
-          <svg class="icon"><use href="#icon-download"></use></svg>
-          下载所选
-        </button>
-        <button class="text-button" id="clearSelectionButton" type="button">清除选择</button>
+        <div class="batch-toolbar" id="batchToolbar" hidden>
+          <span id="selectionCount">已选择 0 项</span>
+          <button class="text-button" id="selectVisibleButton" type="button">选择当前结果</button>
+          <button class="filled-button" id="downloadSelectedButton" type="button">
+            <svg class="icon"><use href="#icon-download"></use></svg>
+            下载所选
+          </button>
+          <button class="text-button" id="clearSelectionButton" type="button">清除选择</button>
+        </div>
+
+        <div class="gallery-grid" id="gallery" aria-live="polite"></div>
+        <div class="loading-more" id="loadingMore" hidden>正在加载更多内容</div>
+        <div id="loadSentinel" aria-hidden="true"></div>
       </div>
 
-      <div class="gallery-grid" id="gallery" aria-live="polite"></div>
-      <div class="loading-more" id="loadingMore" hidden>正在加载更多内容</div>
-      <div id="loadSentinel" aria-hidden="true"></div>
-
-      <section class="friend-links" aria-labelledby="friendLinksTitle">
+      <section class="friend-links" id="friendLinks" aria-labelledby="friendLinksTitle" hidden>
         <div class="friend-links-heading">
           <div>
-            <h2 id="friendLinksTitle">友情链接</h2>
+            <h2 id="friendLinksTitle">推荐站点</h2>
             <p>更多插画与动画内容站点</p>
           </div>
           <svg class="icon" aria-hidden="true"><use href="#icon-external"></use></svg>
@@ -378,6 +384,10 @@
     <button class="mobile-nav-item" type="button" data-view="history" aria-selected="false">
       <svg class="icon"><use href="#icon-history"></use></svg>
       <span>历史</span>
+    </button>
+    <button class="mobile-nav-item" type="button" data-view="links" aria-selected="false">
+      <svg class="icon"><use href="#icon-external"></use></svg>
+      <span>友链</span>
     </button>
     <button class="mobile-nav-item" id="mobileSettingsButton" type="button">
       <svg class="icon"><use href="#icon-tune"></use></svg>
@@ -652,6 +662,6 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script type="module" src="/js/app.js?v=2.8.0"></script>
+  <script type="module" src="/js/app.js?v=2.8.1"></script>
 </body>
 </html>
