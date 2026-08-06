@@ -4,13 +4,16 @@
 
 ## 一键部署
 
-全新服务器以具备 `sudo` 权限的用户执行：
+将 `deploy/atlas-gallery.sh` 复制到服务器任意非部署目录，或直接下载，然后以具备 `sudo` 权限的用户执行：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Neptune326/codex-anima-html/main/deploy/atlas-gallery.sh -o /tmp/atlas-gallery.sh && sudo bash /tmp/atlas-gallery.sh install
+curl -fsSL https://raw.githubusercontent.com/Neptune326/codex-anima-html/main/deploy/atlas-gallery.sh -o atlas-gallery.sh
+sudo bash atlas-gallery.sh
 ```
 
-脚本会安装 Git、Nginx、curl、Node.js，创建专用用户，拉取代码，安装 systemd/Nginx 配置，运行检查与测试，并验证 `4173` 和 `59886` 的本机健康状态。已有 `/etc/atlas-gallery/atlas-gallery.env` 时不会覆盖，服务器仓库存在未提交修改时会停止更新。
+同一个脚本不带参数即可使用：未发现 `/opt/codex-anima-html/.git` 时执行首次部署，已存在时执行强制更新。每个步骤都会显示中文开始和完成状态，结束时输出执行模式、代码版本、访问地址以及成功或失败结果。
+
+首次部署会安装 Git、Nginx、curl、Node.js，创建专用用户，完整克隆代码，安装 systemd/Nginx 配置，运行检查与测试，并验证 `4173` 和 `59886` 的本机健康状态。已有 `/etc/atlas-gallery/atlas-gallery.env` 时不会覆盖。
 
 ## 1. 部署结构
 
@@ -184,10 +187,10 @@ curl --fail http://your-server-ip:59886/api/health
 ## 8. 更新部署
 
 ```bash
-sudo bash /opt/codex-anima-html/deploy/atlas-gallery.sh update
+sudo bash atlas-gallery.sh
 ```
 
-脚本先将服务器配置备份到 `/var/backups/atlas-gallery/`，再以 `--ff-only` 方式更新 `origin/main`，重新安装服务模板、运行检查与测试、重启服务并执行健康检查。服务器工作区存在本地代码修改时，脚本会停止更新且不会覆盖修改。
+脚本先将服务器配置备份到 `/var/backups/atlas-gallery/`，再完整获取所有远端引用与标签，强制将部署目录重置到 `origin/main` 并清理未跟踪文件，随后重新安装服务模板、运行检查与测试、重启服务并执行健康检查。部署目录中的本地代码修改会被覆盖；`/etc/atlas-gallery/atlas-gallery.env` 位于仓库外，不会被覆盖。
 
 ## 9. 日常运维与故障排查
 

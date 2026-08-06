@@ -221,19 +221,24 @@ test('server serves health and static resources without hanging sockets', async 
   }
 });
 
-test('Linux deployment script supports safe install and update flows', () => {
+test('Linux deployment script auto-detects install or forced update with Chinese progress', () => {
   const script = fs.readFileSync(
     path.join(__dirname, '..', 'deploy', 'atlas-gallery.sh'),
     'utf8'
   );
 
   assert.match(script, /set -Eeuo pipefail/);
-  assert.match(script, /install\) install_app/);
-  assert.match(script, /update\) update_app/);
-  assert.match(script, /merge --ff-only/);
-  assert.match(script, /status --porcelain/);
+  assert.match(script, /case "\$\{1:-auto\}"/);
+  assert.match(script, /RUN_MODE="install"/);
+  assert.match(script, /RUN_MODE="update"/);
+  assert.match(script, /fetch --all --force --prune --tags/);
+  assert.match(script, /reset --hard "origin\/\$\{BRANCH\}"/);
+  assert.match(script, /clean -fd/);
+  assert.match(script, /开始：%s/);
+  assert.match(script, /完成：%s/);
+  assert.match(script, /最终结果：执行成功/);
+  assert.match(script, /最终结果：执行失败/);
   assert.match(script, /127\.0\.0\.1:59886\/api\/health/);
-  assert.doesNotMatch(script, /git reset --hard/);
 });
 
 test('new source APIs and media CDN hosts are allowlisted explicitly', () => {

@@ -15,6 +15,12 @@ readonly REPO_URL="${ATLAS_REPO_URL:-https://github.com/Neptune326/codex-anima-h
 readonly BRANCH="${ATLAS_BRANCH:-main}"
 
 TEMP_FILE=""
+CURRENT_STEP="准备执行"
+CURRENT_STEP_NUMBER=0
+TOTAL_STEPS=0
+RUN_MODE=""
+RUN_MODE_LABEL=""
+FINAL_REPORTED=false
 
 log() {
   printf '[atlas-gallery] %s\n' "$*"
@@ -22,7 +28,25 @@ log() {
 
 fail() {
   printf '[atlas-gallery] 错误：%s\n' "$*" >&2
+  FINAL_REPORTED=true
+  printf '\n==================================================\n' >&2
+  printf '最终结果：执行失败\n' >&2
+  printf '失败步骤：%s\n' "${CURRENT_STEP}" >&2
+  printf '==================================================\n' >&2
   exit 1
+}
+
+on_error() {
+  local exit_code="$?"
+  trap - ERR
+  if [[ "${FINAL_REPORTED}" != true ]]; then
+    printf '\n==================================================\n' >&2
+    printf '最终结果：执行失败\n' >&2
+    printf '失败步骤：%s\n' "${CURRENT_STEP}" >&2
+    printf '退出代码：%s\n' "${exit_code}" >&2
+    printf '==================================================\n' >&2
+  fi
+  exit "${exit_code}"
 }
 
 cleanup() {
@@ -32,6 +56,17 @@ cleanup() {
 }
 
 trap cleanup EXIT
+trap on_error ERR
+
+run_step() {
+  local title="$1"
+  shift
+  CURRENT_STEP_NUMBER=$((CURRENT_STEP_NUMBER + 1))
+  CURRENT_STEP="${title}"
+  printf '\n[%s/%s] 开始：%s\n' "${CURRENT_STEP_NUMBER}" "${TOTAL_STEPS}" "${title}"
+  "$@"
+  printf '[%s/%s] 完成：%s\n' "${CURRENT_STEP_NUMBER}" "${TOTAL_STEPS}" "${title}"
+}
 
 require_root() {
   [[ "${EUID}" -eq 0 ]] || fail "请使用 sudo 运行此脚本。"
@@ -90,17 +125,6 @@ ensure_app_user() {
   install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0755 "${INSTALL_DIR}"
 }
 
-assert_clean_repository() {
-  [[ -d "${INSTALL_DIR}/.git" ]] || fail "${INSTALL_DIR} 不是 Git 仓库，请先执行 install。"
-  local changes
-  changes="$(run_as_app git -C "${INSTALL_DIR}" status --porcelain --untracked-files=normal)"
-  [[ -z "${changes}" ]] || fail "服务器仓库存在未提交修改，已停止更新。"
-
-  local current_branch
-  current_branch="$(run_as_app git -C "${INSTALL_DIR}" symbolic-ref --quiet --short HEAD || true)"
-  [[ "${current_branch}" == "${BRANCH}" ]] || fail "服务器当前分支为 ${current_branch:-detached HEAD}，预期为 ${BRANCH}。"
-}
-
 clone_or_update_repository() {
   if [[ -d "${INSTALL_DIR}/.git" ]]; then
     update_repository
@@ -112,14 +136,15 @@ clone_or_update_repository() {
   fi
 
   log "从 GitHub 拉取 ${BRANCH} 分支。"
-  run_as_app git clone --branch "${BRANCH}" --single-branch "${REPO_URL}" "${INSTALL_DIR}"
+  run_as_app git clone --branch "${BRANCH}" "${REPO_URL}" "${INSTALL_DIR}"
 }
 
 update_repository() {
-  assert_clean_repository
-  log "以仅快进方式更新 ${BRANCH} 分支。"
-  run_as_app git -C "${INSTALL_DIR}" fetch --prune origin "${BRANCH}"
-  run_as_app git -C "${INSTALL_DIR}" merge --ff-only "origin/${BRANCH}"
+  [[ -d "${INSTALL_DIR}/.git" ]] || fail "${INSTALL_DIR} 不是 Git 仓库，无法执行更新。"
+  log "强制完整获取远端代码、分支和标签。"
+  run_as_app git -C "${INSTALL_DIR}" fetch --all --force --prune --tags
+  run_as_app git -C "${INSTALL_DIR}" reset --hard "origin/${BRANCH}"
+  run_as_app git -C "${INSTALL_DIR}" clean -fd
 }
 
 backup_server_configuration() {
@@ -177,54 +202,99 @@ wait_for_health() {
 }
 
 verify_deployment() {
-  log "验证 Node 与 Nginx 健康状态。"
   wait_for_health "http://127.0.0.1:4173/api/health"
   wait_for_health "http://127.0.0.1:59886/api/health"
-  log "部署完成，访问地址：http://服务器地址:59886/"
+}
+
+prepare_install() {
+  require_root
+  require_supported_system
+  validate_settings
+}
+
+prepare_update() {
+  prepare_install
+  id "${APP_USER}" >/dev/null 2>&1 || fail "系统用户 ${APP_USER} 不存在，无法更新。"
+  [[ -d "${INSTALL_DIR}/.git" ]] || fail "${INSTALL_DIR} 不是 Git 仓库，无法更新。"
+}
+
+print_success() {
+  local commit
+  local server_ip
+  commit="$(run_as_app git -C "${INSTALL_DIR}" rev-parse --short HEAD)"
+  server_ip="$(hostname -I 2>/dev/null | awk '{print $1}' || true)"
+  server_ip="${server_ip:-服务器IP}"
+  FINAL_REPORTED=true
+  printf '\n==================================================\n'
+  printf '最终结果：执行成功\n'
+  printf '执行模式：%s\n' "${RUN_MODE_LABEL}"
+  printf '代码版本：%s\n' "${commit}"
+  printf '服务状态：Atlas Gallery 与 Nginx 健康检查通过\n'
+  printf '访问地址：http://%s:59886/\n' "${server_ip}"
+  printf '==================================================\n'
 }
 
 install_app() {
-  install_system_packages
-  ensure_app_user
-  clone_or_update_repository
-  install_configuration
-  run_project_checks
-  restart_services
-  verify_deployment
+  TOTAL_STEPS=8
+  run_step "检查系统与脚本配置" prepare_install
+  run_step "安装系统软件和 Node.js" install_system_packages
+  run_step "创建运行用户和部署目录" ensure_app_user
+  run_step "从 GitHub 拉取完整代码" clone_or_update_repository
+  run_step "安装 systemd、Nginx 和环境配置" install_configuration
+  run_step "执行项目检查和自动化测试" run_project_checks
+  run_step "启动 Atlas Gallery 和 Nginx" restart_services
+  run_step "验证 4173 与 59886 端口健康状态" verify_deployment
 }
 
 update_app() {
-  command -v git >/dev/null 2>&1 || fail "未安装 Git，请先执行 install。"
-  command -v npm >/dev/null 2>&1 || fail "未安装 npm，请先执行 install。"
-  id "${APP_USER}" >/dev/null 2>&1 || fail "系统用户 ${APP_USER} 不存在，请先执行 install。"
-  backup_server_configuration
-  update_repository
-  install_configuration
-  run_project_checks
-  restart_services
-  verify_deployment
+  TOTAL_STEPS=8
+  run_step "检查系统与现有部署" prepare_update
+  run_step "检查并补全系统软件和 Node.js" install_system_packages
+  run_step "备份服务器配置" backup_server_configuration
+  run_step "从 GitHub 强制同步全部代码" update_repository
+  run_step "更新 systemd、Nginx 和环境配置" install_configuration
+  run_step "执行项目检查和自动化测试" run_project_checks
+  run_step "重启 Atlas Gallery 和 Nginx" restart_services
+  run_step "验证 4173 与 59886 端口健康状态" verify_deployment
 }
 
 usage() {
   cat <<'EOF'
 用法：
-  sudo bash atlas-gallery.sh install  # 全新安装或安全补全部署
-  sudo bash atlas-gallery.sh update   # 拉取 GitHub 最新代码并更新部署
+  sudo bash atlas-gallery.sh          # 自动判断首次部署或强制更新
+  sudo bash atlas-gallery.sh auto     # 与无参数执行相同
+  sudo bash atlas-gallery.sh install  # 指定首次部署
+  sudo bash atlas-gallery.sh update   # 指定强制更新
 
 可选环境变量：ATLAS_REPO_URL、ATLAS_BRANCH
 EOF
 }
 
 main() {
-  require_root
-  require_supported_system
-  validate_settings
-  case "${1:-}" in
-    install) install_app ;;
-    update) update_app ;;
-    -h|--help|help) usage ;;
+  case "${1:-auto}" in
+    auto)
+      if [[ -d "${INSTALL_DIR}/.git" ]]; then
+        RUN_MODE="update"
+      else
+        RUN_MODE="install"
+      fi
+      ;;
+    install|update) RUN_MODE="$1" ;;
+    -h|--help|help) usage; exit 0 ;;
     *) usage; exit 2 ;;
   esac
+
+  case "${RUN_MODE}" in
+    install)
+      RUN_MODE_LABEL="首次部署"
+      install_app
+      ;;
+    update)
+      RUN_MODE_LABEL="强制更新"
+      update_app
+      ;;
+  esac
+  print_success
 }
 
 main "$@"

@@ -154,11 +154,13 @@ Invoke-RestMethod http://127.0.0.1:4173/api/health
 
 全新 Linux 服务器的逐步安装、Nginx 静态托管、systemd、单端口防火墙、更新、备份和故障排查说明见 [Linux 部署手册](docs/USER_AND_LINUX_DEPLOYMENT.md)。生产部署仅对外开放 TCP `59886`，可直接使用的配置模板位于 `deploy/`。
 
-全新 Ubuntu/Debian 服务器可直接执行一键部署：
+将唯一的脚本下载或复制到 Ubuntu/Debian 服务器后直接执行；脚本会自动判断首次部署或更新：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Neptune326/codex-anima-html/main/deploy/atlas-gallery.sh -o /tmp/atlas-gallery.sh && sudo bash /tmp/atlas-gallery.sh install
+curl -fsSL https://raw.githubusercontent.com/Neptune326/codex-anima-html/main/deploy/atlas-gallery.sh -o atlas-gallery.sh && sudo bash atlas-gallery.sh
 ```
+
+每个步骤均显示中文开始和完成状态。更新模式会强制同步 `origin/main` 并清理部署目录中的本地修改与未跟踪文件，服务器环境配置保存在仓库外且不会被覆盖。
 
 完整功能需要保留 Node 服务提供 `/api/proxy`、`/api/media` 与 `/api/download`。推荐由 Nginx 直接提供 `public/` 静态资源，并把整个 `/api/` 路径反向代理到仅监听 `127.0.0.1:4173` 的 Node 服务。`/api/media` 支持视频 Range 分段读取并直接转发响应，不会把完整视频缓冲到 Node.js 内存。
 
@@ -270,7 +272,7 @@ Node 服务会在内存中缓冲上游响应：普通站点 API 单次上限为 
 ### 更新部署
 
 ```bash
-sudo bash /opt/codex-anima-html/deploy/atlas-gallery.sh update
+sudo bash atlas-gallery.sh
 ```
 
 ## 故障排查
