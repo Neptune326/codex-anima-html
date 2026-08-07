@@ -6,7 +6,7 @@ Atlas Gallery 是一个基于原生 HTML、CSS、JavaScript 和 Node.js 的多�
 
 ## 功能概览
 
-- 集成 23 个图片或视频站点，包括 yande.re、Konachan、Konachan.net、Lolibooru、Gelbooru、Realbooru、Xbooru、Hypnohub、TBIB、Danbooru、AIBooru、Sankaku Channel、Safebooru、Rule34、e621、e926、e6AI、Sakugabooru、Derpibooru、Furbooru、Manebooru、Twibooru 和 Wallhaven。
+- 集成 10 个图片或视频站点，包括 yande.re、Konachan、Konachan.net、Lolibooru、Danbooru、AIBooru、Sankaku Channel、Safebooru、Rule34 和 Wallhaven。
 - 支持图片与视频分类、标签搜索、内容分级、日期周期和尺寸筛选。
 - 支持等高网格与瀑布流、图片懒加载、滚动加载和响应式布局。
 - 支持图片缩放、视频自动播放、静音、循环和播放进度保存。

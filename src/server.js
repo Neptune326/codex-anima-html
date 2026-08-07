@@ -17,24 +17,11 @@ const SITE_HEALTH_TARGETS = Object.freeze({
   konachan: 'https://konachan.com/post.json?limit=1',
   konachanNet: 'https://konachan.net/post.json?limit=1',
   lolibooru: 'https://lolibooru.moe/post.json?limit=1',
-  gelbooru: 'https://gelbooru.com/index.php?page=dapi&s=post&q=index&json=1&limit=1',
-  realbooru: 'https://realbooru.com/index.php?page=dapi&s=post&q=index&json=1&limit=1',
-  xbooru: 'https://xbooru.com/index.php?page=dapi&s=post&q=index&json=1&limit=1',
-  hypnohub: 'https://hypnohub.net/index.php?page=dapi&s=post&q=index&json=1&limit=1',
-  tbib: 'https://tbib.org/index.php?page=dapi&s=post&q=index&json=1&limit=1',
   danbooru: 'https://danbooru.donmai.us/posts.json?limit=1',
-  sankaku: 'https://sankakuapi.com/v2/posts?limit=1&lang=en',
+  sankaku: 'https://capi-v2.sankakucomplex.com/posts?limit=1',
   safebooru: 'https://safebooru.org/index.php?page=dapi&s=post&q=index&json=1&limit=1',
   rule34: 'https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&limit=1',
-  e621: 'https://e621.net/posts.json?limit=1',
-  e926: 'https://e926.net/posts.json?limit=1',
-  e6ai: 'https://e6ai.net/posts.json?limit=1',
   aibooru: 'https://aibooru.online/posts.json?limit=1',
-  sakugabooru: 'https://www.sakugabooru.com/post.json?limit=1',
-  derpibooru: 'https://derpibooru.org/api/v1/json/search/images?q=safe&per_page=1',
-  furbooru: 'https://furbooru.org/api/v1/json/search/images?q=safe&per_page=1',
-  manebooru: 'https://manebooru.art/api/v1/json/search/images?q=safe&per_page=1',
-  twibooru: 'https://twibooru.org/api/v3/search/posts?q=safe&per_page=1',
   wallhaven: 'https://wallhaven.cc/api/v1/search?purity=100&page=1'
 });
 
@@ -45,33 +32,13 @@ const ALLOWED_HOSTS = new Set([
   'konachan.net',
   'www.konachan.net',
   'lolibooru.moe',
-  'gelbooru.com',
-  'www.gelbooru.com',
-  'realbooru.com',
-  'www.realbooru.com',
-  'xbooru.com',
-  'www.xbooru.com',
-  'hypnohub.net',
-  'www.hypnohub.net',
-  'tbib.org',
-  'www.tbib.org',
   'danbooru.donmai.us',
   'capi-v2.sankakucomplex.com',
-  'sankakuapi.com',
   'safebooru.org',
   'www.safebooru.org',
   'api.rule34.xxx',
   'rule34.xxx',
-  'e621.net',
-  'e926.net',
-  'e6ai.net',
   'aibooru.online',
-  'sakugabooru.com',
-  'www.sakugabooru.com',
-  'derpibooru.org',
-  'furbooru.org',
-  'manebooru.art',
-  'twibooru.org',
   'wallhaven.cc'
 ]);
 
@@ -80,27 +47,12 @@ const MEDIA_HOST_SUFFIXES = [
   'konachan.com',
   'konachan.net',
   'lolibooru.moe',
-  'gelbooru.com',
-  'realbooru.com',
-  'xbooru.com',
-  'hypnohub.net',
-  'tbib.org',
   'donmai.us',
   'sankakucomplex.com',
   'safebooru.org',
   'rule34.xxx',
-  'e621.net',
-  'e926.net',
-  'e6ai.net',
   'aibooru.online',
   'aibooru.download',
-  'sakugabooru.com',
-  'derpibooru.org',
-  'derpicdn.net',
-  'furbooru.org',
-  'furrycdn.org',
-  'manebooru.art',
-  'twibooru.org',
   'wallhaven.cc'
 ];
 
@@ -115,14 +67,8 @@ const MIME_TYPES = {
 const MEDIA_REFERERS = Object.freeze([
   ['aibooru.download', 'https://aibooru.online/'],
   ['donmai.us', 'https://danbooru.donmai.us/'],
-  ['e621.net', 'https://e621.net/'],
-  ['e926.net', 'https://e926.net/'],
-  ['e6ai.net', 'https://e6ai.net/'],
-  ['twibooru.org', 'https://twibooru.org/'],
-  ['xbooru.com', 'https://xbooru.com/'],
-  ['hypnohub.net', 'https://hypnohub.net/'],
   ['sankakucomplex.com', 'https://chan.sankakucomplex.com/'],
-  ['sakugabooru.com', 'https://www.sakugabooru.com/']
+  ['rule34.xxx', 'https://rule34.xxx/']
 ]);
 
 function sendJson(response, status, body, extraHeaders = {}) {
@@ -354,11 +300,18 @@ function safeRange(value) {
 }
 
 function upstreamHeaders(target) {
-  if (['capi-v2.sankakucomplex.com', 'sankakuapi.com'].includes(target.hostname.toLowerCase())) {
+  const hostname = target.hostname.toLowerCase();
+  if (hostname === 'capi-v2.sankakucomplex.com') {
     return {
-      Accept: 'application/json,text/plain,*/*',
-      Origin: 'https://www.sankakucomplex.com',
-      Referer: 'https://www.sankakucomplex.com/',
+      Accept: 'application/vnd.sankaku.api+json;v=2',
+      Referer: 'https://chan.sankakucomplex.com/',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/138.0.0.0 Safari/537.36'
+    };
+  }
+
+  if (['api.rule34.xxx', 'lolibooru.moe'].includes(hostname)) {
+    return {
+      Referer: hostname === 'api.rule34.xxx' ? 'https://rule34.xxx/' : 'https://lolibooru.moe/',
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/138.0.0.0 Safari/537.36'
     };
   }

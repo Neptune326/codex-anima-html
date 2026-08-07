@@ -4,7 +4,7 @@ import {
   createQuery,
   getSource,
   ratingName
-} from './sites.js?v=2.10.0';
+} from './sites.js?v=2.11.0';
 import {
   clampPreviewPan,
   downloadFilename,
@@ -23,7 +23,7 @@ import {
   sourceSupportsMedia,
   suggestTags,
   translateTag
-} from './library.js?v=2.10.0';
+} from './library.js?v=2.11.0';
 import {
   exportLibrary,
   hydrateLibrary,
@@ -32,7 +32,7 @@ import {
   resetState,
   saveLibrary,
   saveState
-} from './storage.js?v=2.10.0';
+} from './storage.js?v=2.11.0';
 
 const elements = {
   sourceList: document.querySelector('#sourceList'),
@@ -226,6 +226,7 @@ function currentQuery(page = currentPage) {
     page,
     mediaType: state.mediaType,
     tags: state.tags,
+    ratings: state.ratings,
     ...dateRange()
   });
 }

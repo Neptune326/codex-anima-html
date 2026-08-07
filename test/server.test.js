@@ -60,10 +60,10 @@ function closeServer(server) {
 }
 
 test('validateTarget only accepts HTTPS allowlisted hosts', () => {
-  assert.equal(validateTarget('https://e621.net/posts.json').hostname, 'e621.net');
-  assert.throws(() => validateTarget('http://e621.net/posts.json'), /白名单/);
+  assert.equal(validateTarget('https://danbooru.donmai.us/posts.json').hostname, 'danbooru.donmai.us');
+  assert.throws(() => validateTarget('http://danbooru.donmai.us/posts.json'), /白名单/);
   assert.throws(() => validateTarget('https://example.com/posts.json'), /白名单/);
-  assert.throws(() => validateTarget('https://user:pass@e621.net/posts.json'), /凭据/);
+  assert.throws(() => validateTarget('https://user:pass@danbooru.donmai.us/posts.json'), /凭据/);
 });
 
 test('parseProxy validates HTTP proxy addresses', () => {
@@ -94,25 +94,24 @@ test('media requests use safe ranges and source-aware referers', () => {
     'https://aibooru.online/'
   );
   assert.equal(
-    mediaReferer(new URL('https://cdn.twibooru.org/img/sample.webm')),
-    'https://twibooru.org/'
-  );
-  assert.equal(
     mediaReferer(new URL('https://v.sankakucomplex.com/data/sample.mp4')),
     'https://chan.sankakucomplex.com/'
   );
 });
 
 test('Sankaku API requests use browser-compatible headers', () => {
-  const headers = upstreamHeaders(new URL('https://sankakuapi.com/v2/posts'));
-  assert.equal(headers.Accept, 'application/json,text/plain,*/*');
-  assert.equal(headers.Origin, 'https://www.sankakucomplex.com');
-  assert.equal(headers.Referer, 'https://www.sankakucomplex.com/');
-  assert.equal(
-    upstreamHeaders(new URL('https://capi-v2.sankakucomplex.com/posts')).Origin,
-    'https://www.sankakucomplex.com'
-  );
+  const headers = upstreamHeaders(new URL('https://capi-v2.sankakucomplex.com/posts'));
+  assert.equal(headers.Accept, 'application/vnd.sankaku.api+json;v=2');
+  assert.equal(headers.Referer, 'https://chan.sankakucomplex.com/');
   assert.match(headers['User-Agent'], /^Mozilla\/5\.0/);
+  assert.equal(
+    upstreamHeaders(new URL('https://api.rule34.xxx/index.php')).Referer,
+    'https://rule34.xxx/'
+  );
+  assert.equal(
+    upstreamHeaders(new URL('https://lolibooru.moe/post.json')).Referer,
+    'https://lolibooru.moe/'
+  );
   assert.deepEqual(upstreamHeaders(new URL('https://danbooru.donmai.us/posts.json')), {});
 });
 
@@ -121,10 +120,7 @@ test('download targets and filenames are constrained', () => {
     validateDownloadTarget('https://cdn.donmai.us/original/sample.jpg').hostname,
     'cdn.donmai.us'
   );
-  assert.equal(
-    validateDownloadTarget('https://static1.e621.net/data/sample.webm').hostname,
-    'static1.e621.net'
-  );
+  assert.equal(validateDownloadTarget('https://wimg.rule34.xxx/sample.jpg').hostname, 'wimg.rule34.xxx');
   assert.throws(
     () => validateDownloadTarget('https://evil-donmai.us/sample.jpg'),
     /白名单/
@@ -157,7 +153,7 @@ test('server serves health and static resources without hanging sockets', async 
     assert.equal(health.status, 200);
     assert.deepEqual(JSON.parse(health.body), {
       ok: true,
-      version: '2.10.0',
+      version: '2.11.0',
       proxyMode: app.proxyMode
     });
 
@@ -183,10 +179,10 @@ test('server serves health and static resources without hanging sockets', async 
     assert.match(page.body, /class="friend-links"/);
     assert.match(page.body, /data-view="links"/);
     assert.match(page.body, /id="friendLinks"[^>]*hidden/);
-    assert.match(page.body, /styles\.css\?v=2\.10\.0/);
+    assert.match(page.body, /styles\.css\?v=2\.11\.0/);
     assert.match(page.body, /data-view="playlist"/);
     assert.doesNotMatch(page.body, /id="aggregateSearchButton"/);
-    assert.match(page.body, /href="https:\/\/realbooru\.com\/"/);
+    assert.doesNotMatch(page.body, /href="https:\/\/(?:realbooru|gelbooru)\.com\/"/);
     assert.doesNotMatch(page.body, /href="https:\/\/aibooru\.online\/"[^>]*class="friend-link"/);
     assert.match(page.body, /href="https:\/\/hanime1\.me\/"/);
     assert.match(page.body, /href="https:\/\/nhentai\.net\/"/);
@@ -284,7 +280,7 @@ test('production Nginx config revalidates interface assets without dropping secu
   assert.doesNotMatch(config, /location \/(?:css|js)\/[\s\S]*?add_header/);
 });
 
-test('new source APIs and media CDN hosts are allowlisted explicitly', () => {
+test('retained source APIs are allowlisted and removed sources are rejected', () => {
   assert.equal(
     validateTarget('https://konachan.net/post.json').hostname,
     'konachan.net'
@@ -294,101 +290,42 @@ test('new source APIs and media CDN hosts are allowlisted explicitly', () => {
     'lolibooru.moe'
   );
   assert.equal(
-    validateTarget('https://xbooru.com/index.php?page=dapi').hostname,
-    'xbooru.com'
-  );
-  assert.equal(
-    validateTarget('https://hypnohub.net/index.php?page=dapi').hostname,
-    'hypnohub.net'
-  );
-  assert.equal(
-    validateTarget('https://tbib.org/index.php?page=dapi').hostname,
-    'tbib.org'
-  );
-  assert.equal(
-    validateTarget('https://realbooru.com/index.php?page=dapi').hostname,
-    'realbooru.com'
-  );
-  assert.equal(
     validateTarget('https://aibooru.online/posts.json').hostname,
     'aibooru.online'
-  );
-  assert.equal(
-    validateTarget('https://e6ai.net/posts.json').hostname,
-    'e6ai.net'
-  );
-  assert.equal(
-    validateTarget('https://derpibooru.org/api/v1/json/search/images').hostname,
-    'derpibooru.org'
   );
   assert.equal(
     validateTarget('https://wallhaven.cc/api/v1/search').hostname,
     'wallhaven.cc'
   );
   assert.equal(
-    validateTarget('https://furbooru.org/api/v1/json/search/images').hostname,
-    'furbooru.org'
-  );
-  assert.equal(
-    validateTarget('https://manebooru.art/api/v1/json/search/images').hostname,
-    'manebooru.art'
-  );
-  assert.equal(
-    validateTarget('https://twibooru.org/api/v3/search/posts').hostname,
-    'twibooru.org'
-  );
-  assert.equal(
-    validateTarget('https://sankakuapi.com/v2/posts').hostname,
-    'sankakuapi.com'
-  );
-  assert.equal(
     validateTarget('https://capi-v2.sankakucomplex.com/posts').hostname,
     'capi-v2.sankakucomplex.com'
-  );
-  assert.equal(
-    validateTarget('https://www.sakugabooru.com/post.json').hostname,
-    'www.sakugabooru.com'
   );
   assert.equal(
     validateDownloadTarget('https://cdn.aibooru.download/file/sample.webp').hostname,
     'cdn.aibooru.download'
   );
   assert.equal(
-    validateDownloadTarget('https://derpicdn.net/img/view/sample.webm').hostname,
-    'derpicdn.net'
-  );
-  assert.equal(
     validateDownloadTarget('https://w.wallhaven.cc/full/ab/sample.jpg').hostname,
     'w.wallhaven.cc'
   );
-  assert.equal(
-    validateDownloadTarget('https://img.xbooru.com/images/sample.webm').hostname,
-    'img.xbooru.com'
-  );
-  assert.equal(
-    validateDownloadTarget('https://static1.e6ai.net/data/sample.webm').hostname,
-    'static1.e6ai.net'
-  );
-  assert.equal(
-    validateDownloadTarget('https://tbib.org/images/1/sample.jpg').hostname,
-    'tbib.org'
-  );
-  assert.equal(
-    validateDownloadTarget('https://realbooru.com/images/1/sample.jpg').hostname,
-    'realbooru.com'
-  );
-  assert.equal(
-    validateDownloadTarget('https://furrycdn.org/img/view/sample.webp').hostname,
-    'furrycdn.org'
-  );
-  assert.equal(
-    validateDownloadTarget('https://static.manebooru.art/img/view/sample.jpg').hostname,
-    'static.manebooru.art'
-  );
-  assert.equal(
-    validateDownloadTarget('https://cdn.twibooru.org/img/sample.webm').hostname,
-    'cdn.twibooru.org'
-  );
+  for (const removedUrl of [
+    'https://gelbooru.com/index.php?page=dapi',
+    'https://realbooru.com/index.php?page=dapi',
+    'https://xbooru.com/index.php?page=dapi',
+    'https://hypnohub.net/index.php?page=dapi',
+    'https://tbib.org/index.php?page=dapi',
+    'https://e621.net/posts.json',
+    'https://e926.net/posts.json',
+    'https://e6ai.net/posts.json',
+    'https://www.sakugabooru.com/post.json',
+    'https://derpibooru.org/api/v1/json/search/images',
+    'https://furbooru.org/api/v1/json/search/images',
+    'https://manebooru.art/api/v1/json/search/images',
+    'https://twibooru.org/api/v3/search/posts'
+  ]) {
+    assert.throws(() => validateTarget(removedUrl), /白名单/);
+  }
 });
 
 test('site health only probes mapped sources and never accepts arbitrary URLs', async () => {
@@ -414,10 +351,10 @@ test('site health only probes mapped sources and never accepts arbitrary URLs', 
     });
     assert.equal(probes[0].target, 'https://danbooru.donmai.us/posts.json?limit=1');
 
-    const newSource = await request(server, '/api/site-health?source=sakugabooru');
+    const newSource = await request(server, '/api/site-health?source=sankaku');
     assert.equal(newSource.status, 200);
-    assert.equal(probes[1].source, 'sakugabooru');
-    assert.equal(probes[1].target, 'https://www.sakugabooru.com/post.json?limit=1');
+    assert.equal(probes[1].source, 'sankaku');
+    assert.equal(probes[1].target, 'https://capi-v2.sankakucomplex.com/posts?limit=1');
 
     const arbitrary = await request(
       server,

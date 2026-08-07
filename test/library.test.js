@@ -42,19 +42,19 @@ test('download filenames use normalized source, id and extension', async () => {
     extension: 'PNG'
   }), 'danbooru-42.png');
   assert.equal(downloadFilename({
-    source: 'e621',
+    source: 'danbooru',
     id: '7',
     type: 'video',
-    file: 'https://static1.e621.net/data/sample.webm?x=1'
-  }), 'e621-7.webm');
+    file: 'https://cdn.donmai.us/data/sample.webm?x=1'
+  }), 'danbooru-7.webm');
   assert.equal(downloadFilename({
-    source: 'twibooru',
+    source: 'sankaku',
     id: '8/9',
     type: 'video',
     width: 1920,
     height: 1080,
     extension: 'webm'
-  }, '{source}_{type}_{width}x{height}_{id}'), 'twibooru_video_1920x1080_8-9.webm');
+  }, '{source}_{type}_{width}x{height}_{id}'), 'sankaku_video_1920x1080_8-9.webm');
   assert.equal(downloadFilename({ id: '10' }, '../{id}:{unknown}'), '..-10.jpg');
 });
 
