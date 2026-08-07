@@ -157,7 +157,7 @@ test('server serves health and static resources without hanging sockets', async 
     assert.equal(health.status, 200);
     assert.deepEqual(JSON.parse(health.body), {
       ok: true,
-      version: '2.8.1',
+      version: '2.9.0',
       proxyMode: app.proxyMode
     });
 
@@ -183,7 +183,11 @@ test('server serves health and static resources without hanging sockets', async 
     assert.match(page.body, /class="friend-links"/);
     assert.match(page.body, /data-view="links"/);
     assert.match(page.body, /id="friendLinks"[^>]*hidden/);
-    assert.match(page.body, /styles\.css\?v=2\.8\.1/);
+    assert.match(page.body, /styles\.css\?v=2\.9\.0/);
+    assert.match(page.body, /data-view="playlist"/);
+    assert.match(page.body, /id="aggregateSearchButton"/);
+    assert.match(page.body, /href="https:\/\/realbooru\.com\/"/);
+    assert.doesNotMatch(page.body, /href="https:\/\/aibooru\.online\/"[^>]*class="friend-link"/);
     assert.match(page.body, /href="https:\/\/hanime1\.me\/"/);
     assert.match(page.body, /target="_blank" rel="noopener noreferrer"/);
 
@@ -202,6 +206,8 @@ test('server serves health and static resources without hanging sockets', async 
     assert.match(appScript.body, /video\.videoWidth > video\.videoHeight/);
     assert.match(appScript.body, /state\.view === 'links'/);
     assert.match(appScript.body, /friendLinks\.hidden = !linksView/);
+    assert.match(appScript.body, /state\.aggregateSearch/);
+    assert.match(appScript.body, /toggleWatchLater/);
     assert.match(appScript.headers['cache-control'], /no-store/);
 
     const styles = await request(server, '/css/styles.css');
@@ -218,7 +224,9 @@ test('server serves health and static resources without hanging sockets', async 
     assert.match(styles.body, /\.preview-media video\.is-portrait\s*\{[^}]*height:\s*100%;/s);
     assert.match(styles.body, /\.friend-links-grid\s*\{[^}]*grid-template-columns:\s*repeat\(auto-fit,/s);
     assert.match(styles.body, /@media \(max-width:\s*640px\)[\s\S]*\.friend-links-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\);/s);
-    assert.match(styles.body, /grid-template-columns:\s*repeat\(5,\s*minmax\(0,\s*1fr\)\)/);
+    assert.match(styles.body, /grid-template-columns:\s*repeat\(6,\s*minmax\(0,\s*1fr\)\)/);
+    assert.match(styles.body, /\.source-actions\s*\{/);
+    assert.match(styles.body, /\.watch-button\s*\{/);
 
     const missing = await request(server, '/missing-resource');
     assert.equal(missing.status, 404);
@@ -292,6 +300,10 @@ test('new source APIs and media CDN hosts are allowlisted explicitly', () => {
     'tbib.org'
   );
   assert.equal(
+    validateTarget('https://realbooru.com/index.php?page=dapi').hostname,
+    'realbooru.com'
+  );
+  assert.equal(
     validateTarget('https://aibooru.online/posts.json').hostname,
     'aibooru.online'
   );
@@ -354,6 +366,10 @@ test('new source APIs and media CDN hosts are allowlisted explicitly', () => {
   assert.equal(
     validateDownloadTarget('https://tbib.org/images/1/sample.jpg').hostname,
     'tbib.org'
+  );
+  assert.equal(
+    validateDownloadTarget('https://realbooru.com/images/1/sample.jpg').hostname,
+    'realbooru.com'
   );
   assert.equal(
     validateDownloadTarget('https://furrycdn.org/img/view/sample.webp').hostname,

@@ -4,7 +4,7 @@ import {
   createQuery,
   getSource,
   ratingName
-} from './sites.js?v=2.8.1';
+} from './sites.js?v=2.9.0';
 import {
   clampPreviewPan,
   downloadFilename,
@@ -22,7 +22,7 @@ import {
   sourceSupportsMedia,
   suggestTags,
   translateTag
-} from './library.js?v=2.8.1';
+} from './library.js?v=2.9.0';
 import {
   exportLibrary,
   hydrateLibrary,
@@ -31,12 +31,13 @@ import {
   resetState,
   saveLibrary,
   saveState
-} from './storage.js?v=2.8.1';
+} from './storage.js?v=2.9.0';
 
 const elements = {
   sourceList: document.querySelector('#sourceList'),
   sourceCount: document.querySelector('#sourceCount'),
   pixivButton: document.querySelector('#pixivButton'),
+  aggregateSearchButton: document.querySelector('#aggregateSearchButton'),
   pixivDialog: document.querySelector('#pixivDialog'),
   pixivForm: document.querySelector('#pixivForm'),
   pixivInput: document.querySelector('#pixivInput'),
@@ -62,6 +63,7 @@ const elements = {
   sectionIconUse: document.querySelector('#sectionIconUse'),
   sectionActions: document.querySelector('#sectionActions'),
   favoriteCounts: [...document.querySelectorAll('[data-favorite-count]')],
+  watchCounts: [...document.querySelectorAll('[data-watch-count]')],
   resultCount: document.querySelector('#resultCount'),
   dimensionFilter: document.querySelector('#dimensionFilter'),
   layoutToggle: document.querySelector('#layoutToggle'),
@@ -171,6 +173,17 @@ const lastRequestAt = new Map();
 const RESPONSE_CACHE_PREFIX = 'atlas-gallery-response:';
 const RESPONSE_CACHE_TTL_MS = 5 * 60 * 1000;
 const MIN_SOURCE_REQUEST_INTERVAL_MS = 350;
+const AGGREGATE_SOURCE_IDS = Object.freeze([
+  'yandere',
+  'konachan',
+  'gelbooru',
+  'xbooru',
+  'danbooru',
+  'sankaku',
+  'safebooru',
+  'wallhaven',
+  'realbooru'
+]);
 
 function icon(name) {
   return `<svg class="icon"><use href="#icon-${name}"></use></svg>`;
@@ -233,6 +246,7 @@ function currentSource() {
 
 function popularContextKey() {
   return JSON.stringify([
+    state.aggregateSearch,
     state.source,
     state.mediaType,
     state.period,
@@ -262,6 +276,10 @@ function visiblePosts() {
   } else if (state.view === 'history') {
     rows = Object.values(state.history).sort((left, right) => {
       return String(right.viewedAt || '').localeCompare(String(left.viewedAt || ''));
+    });
+  } else if (state.view === 'playlist') {
+    rows = Object.values(state.watchLater).sort((left, right) => {
+      return String(right.addedAt || '').localeCompare(String(left.addedAt || ''));
     });
   } else {
     rows = posts;
@@ -330,8 +348,20 @@ function renderSources() {
   });
 
   const mediaName = state.mediaType === 'video' ? '视频' : '图片';
-  elements.sourceCount.textContent = `${visibleSources.length} 个${mediaName}站点`;
-  elements.sourceList.innerHTML = visibleSources.map(([sourceId, source]) => {
+  elements.sourceCount.textContent = state.aggregateSearch
+    ? `${AGGREGATE_SOURCE_IDS.filter(sourceId => sourceSupportsMedia(SOURCES[sourceId], state.mediaType)).length} 个聚合站点`
+    : `${visibleSources.length} 个${mediaName}站点`;
+  const aggregateButton = `
+    <button
+      class="source-chip aggregate-source-chip ${state.aggregateSearch ? 'is-selected' : ''}"
+      type="button"
+      data-aggregate-search
+      role="radio"
+      aria-checked="${state.aggregateSearch}"
+      title="同时搜索多个普通图片与动画站点"
+    >${icon('more')}<span class="source-name">聚合搜索</span></button>
+  `;
+  elements.sourceList.innerHTML = aggregateButton + visibleSources.map(([sourceId, source]) => {
     const health = sourceHealth[sourceId];
     const healthTitle = health.status === 'online'
       ? `在线 · ${health.latencyMs} ms · HTTP ${health.httpStatus}`
@@ -341,12 +371,12 @@ function renderSources() {
 
     return `
     <button
-      class="source-chip ${sourceId === state.source ? 'is-selected' : ''}"
+      class="source-chip ${!state.aggregateSearch && sourceId === state.source ? 'is-selected' : ''}"
       type="button"
       data-source="${sourceId}"
       title="${escapeHtml(`${source.description} · ${healthTitle}`)}"
       role="radio"
-      aria-checked="${sourceId === state.source}"
+      aria-checked="${!state.aggregateSearch && sourceId === state.source}"
     >
       <span class="source-health is-${health.status}" aria-hidden="true"></span>
       <span class="source-monogram" aria-hidden="true">${escapeHtml(source.shortName.slice(0, 1).toUpperCase())}</span>
@@ -362,7 +392,7 @@ function renderSources() {
 
 function renderRecentSearches() {
   const searches = state.recentSearches.filter(Boolean).slice(0, 6);
-  elements.recentSearches.hidden = searches.length === 0 || state.view === 'favorites';
+  elements.recentSearches.hidden = searches.length === 0 || state.view !== 'popular';
   elements.recentSearchList.innerHTML = searches.map(search => `
     <button class="filter-chip" type="button" data-recent-search="${escapeHtml(search)}">
       ${escapeHtml(search)}
@@ -573,10 +603,11 @@ function renderControls() {
   elements.controlSurface.hidden = state.view !== 'popular';
   elements.mobileFilterButton.hidden = state.view !== 'popular';
   const linksView = state.view === 'links';
+  const auxiliaryView = linksView || state.view === 'playlist';
   elements.galleryView.hidden = linksView;
   elements.friendLinks.hidden = !linksView;
-  elements.sectionActions.hidden = linksView;
-  elements.refreshButton.hidden = linksView;
+  elements.sectionActions.hidden = auxiliaryView;
+  elements.refreshButton.hidden = auxiliaryView;
   if (state.view !== 'popular') {
     closeMobileFilters();
   }
@@ -602,6 +633,11 @@ function renderControls() {
   elements.favoriteCounts.forEach(element => {
     element.textContent = Object.keys(state.favorites).length;
   });
+  elements.watchCounts.forEach(element => {
+    element.textContent = Object.keys(state.watchLater).length;
+  });
+  elements.aggregateSearchButton.classList.toggle('is-active', state.aggregateSearch);
+  elements.aggregateSearchButton.setAttribute('aria-pressed', String(state.aggregateSearch));
 
   renderSources();
   renderRecentSearches();
@@ -651,6 +687,13 @@ function renderHeader() {
     return;
   }
 
+  if (state.view === 'playlist') {
+    elements.sectionTitle.textContent = '稍后观看';
+    elements.sectionSubtitle.textContent = '保存想看的图片与视频，视频会保留播放进度';
+    elements.sectionIconUse.setAttribute('href', '#icon-bookmark');
+    return;
+  }
+
   elements.sectionTitle.textContent = '热门图库';
   elements.sectionSubtitle.textContent = `${currentSource().name} · ${state.mediaType === 'video' ? '视频' : '图片'}内容`;
   elements.sectionIconUse.setAttribute('href', '#icon-fire');
@@ -681,13 +724,16 @@ function emptyState() {
 
   const favoritesView = state.view === 'favorites';
   const historyView = state.view === 'history';
+  const playlistView = state.view === 'playlist';
   const title = favoritesView
     ? '还没有收藏内容'
-    : historyView ? '还没有浏览历史' : '没有找到可展示的内容';
+    : historyView ? '还没有浏览历史' : playlistView ? '稍后观看列表为空' : '没有找到可展示的内容';
   const description = favoritesView
     ? '浏览图库并点击心形按钮，即可在这里集中查看。'
-    : historyView ? '打开图片或视频预览后，会在这里留下记录。' : '调整标签、媒体类型或内容分级后重试。';
-  const iconName = favoritesView ? 'favorite' : historyView ? 'history' : state.mediaType;
+    : historyView ? '打开图片或视频预览后，会在这里留下记录。'
+      : playlistView ? '在媒体卡片或预览窗口点击书签，即可加入稍后观看。'
+        : '调整标签、媒体类型或内容分级后重试。';
+  const iconName = favoritesView ? 'favorite' : historyView ? 'history' : playlistView ? 'bookmark' : state.mediaType;
 
   return statePanel({ title, description, iconName });
 }
@@ -698,6 +744,7 @@ function renderSkeletons() {
 
 function postCard(post, index) {
   const isFavorite = Boolean(state.favorites[favoriteKey(post)]);
+  const isWatchLater = Boolean(state.watchLater[favoriteKey(post)]);
   const isSensitive = state.settings.blurSensitive && post.rating !== 'safe';
   const preview = post.preview || post.sample || post.file;
   const previewUrl = buildMediaUrl(preview);
@@ -735,6 +782,12 @@ function postCard(post, index) {
       <footer class="card-footer">
         <span class="score">▲ ${Number(post.score) || 0}</span>
         <span class="dimensions">${Number(post.width) || 0} × ${Number(post.height) || 0}</span>
+        <button
+          class="watch-button ${isWatchLater ? 'is-active' : ''}"
+          type="button"
+          data-toggle-watch-later="${index}"
+          title="${isWatchLater ? '移出稍后观看' : '加入稍后观看'}"
+        >${icon('bookmark')}</button>
         <button class="download-button" type="button" data-download-post="${index}" title="下载媒体">
           ${icon('download')}
         </button>
@@ -963,6 +1016,18 @@ function filterPosts(rows) {
   });
 }
 
+function mergeUniquePosts(rows) {
+  const unique = new Map();
+  [...posts, ...rows].forEach(post => {
+    const identity = mediaIdentity(post) || favoriteKey(post);
+    const previous = unique.get(identity);
+    if (!previous || Number(post.score) > Number(previous.score)) {
+      unique.set(identity, post);
+    }
+  });
+  return [...unique.values()].sort((left, right) => right.score - left.score);
+}
+
 async function fetchPosts({ reset = false, force = false } = {}) {
   if (state.view !== 'popular' || isLoading && !reset || !hasMore && !reset) {
     return;
@@ -989,32 +1054,55 @@ async function fetchPosts({ reset = false, force = false } = {}) {
   elements.refreshButton.disabled = true;
 
   try {
-    const source = currentSource();
-    const upstreamUrl = source.buildUrl(currentQuery()).href;
-    const payload = await requestWithRetry(upstreamUrl, controller.signal, force);
+    let rawPosts = [];
+    let filteredPosts = [];
+    let failedSources = [];
+    if (state.aggregateSearch) {
+      const sourceIds = AGGREGATE_SOURCE_IDS.filter(sourceId => {
+        return sourceSupportsMedia(SOURCES[sourceId], state.mediaType);
+      });
+      const results = await Promise.allSettled(sourceIds.map(async sourceId => {
+        const source = SOURCES[sourceId];
+        const payload = await requestWithRetry(source.buildUrl(currentQuery()).href, controller.signal, force);
+        const rows = source.parse(payload);
+        return { sourceId, rows };
+      }));
+      results.forEach(result => {
+        if (result.status === 'fulfilled') {
+          rawPosts.push(...result.value.rows);
+        } else {
+          failedSources.push(result.reason?.message || '请求失败');
+        }
+      });
+      if (!rawPosts.length && failedSources.length) {
+        throw new Error(`全部聚合站点请求失败（${failedSources.length} 个）`);
+      }
+    } else {
+      const source = currentSource();
+      const upstreamUrl = source.buildUrl(currentQuery()).href;
+      const payload = await requestWithRetry(upstreamUrl, controller.signal, force);
+      rawPosts = source.parse(payload);
+    }
 
     if (sequence !== requestSequence) {
       return;
     }
 
-    const rawPosts = source.parse(payload);
-    const filteredPosts = filterPosts(rawPosts);
-    const uniquePosts = new Map(
-      [...posts, ...filteredPosts].map(post => [favoriteKey(post), post])
-    );
-
-    posts = [...uniquePosts.values()].sort((left, right) => right.score - left.score);
+    filteredPosts = filterPosts(rawPosts);
+    posts = mergeUniquePosts(filteredPosts);
     loadedPopularContextKey = popularContextKey();
     hasMore = rawPosts.length >= PAGE_SIZE;
     currentPage += 1;
-    galleryError = '';
+    galleryError = failedSources.length
+      ? `聚合搜索中有 ${failedSources.length} 个站点请求失败，已显示其余结果`
+      : '';
     renderGallery();
   } catch (error) {
     if (error.name === 'AbortError' || sequence !== requestSequence) {
       return;
     }
 
-    const sourceName = currentSource().name;
+    const sourceName = state.aggregateSearch ? '聚合搜索' : currentSource().name;
     galleryError = `${sourceName} 请求失败：${error.message}`;
     hasMore = false;
     renderGallery();
@@ -1058,6 +1146,7 @@ function changeSource(sourceId) {
   remoteTagCandidates = [];
   saveGalleryScrollPosition();
   state.source = sourceId;
+  state.aggregateSearch = false;
   scheduleGalleryScrollRestore();
   renderControls();
   fetchPosts({ reset: true });
@@ -1117,6 +1206,30 @@ async function toggleFavorite(post) {
   }
 
   await persistLibrary();
+  renderGallery();
+  if (elements.previewDialog.open) {
+    renderPreview();
+  }
+}
+
+function toggleWatchLater(post) {
+  if (!post) {
+    return;
+  }
+
+  const key = favoriteKey(post);
+  if (state.watchLater[key]) {
+    delete state.watchLater[key];
+    showToast('已移出稍后观看');
+  } else {
+    state.watchLater[key] = {
+      ...post,
+      addedAt: new Date().toISOString()
+    };
+    showToast('已加入稍后观看');
+  }
+  persist();
+  renderControls();
   renderGallery();
   if (elements.previewDialog.open) {
     renderPreview();
@@ -1406,6 +1519,7 @@ function renderPreview() {
   const source = getSource(post.source);
   const favorite = state.favorites[favoriteKey(post)];
   const isFavorite = Boolean(favorite);
+  const isWatchLater = Boolean(state.watchLater[favoriteKey(post)]);
   const tags = Array.isArray(post.tags) ? post.tags.slice(0, 100) : [];
 
   elements.previewDetails.innerHTML = `
@@ -1440,6 +1554,9 @@ function renderPreview() {
       <button class="outlined-button" id="previewFavorite" type="button">
         ${icon('favorite')}${isFavorite ? '取消收藏' : '收藏'}
       </button>
+      <button class="outlined-button" id="previewWatchLater" type="button">
+        ${icon('bookmark')}${isWatchLater ? '移出稍后看' : '加入稍后看'}
+      </button>
       <button class="outlined-button" id="copyTags" type="button">
         ${icon('copy')}复制标签
       </button>
@@ -1458,6 +1575,7 @@ function renderPreview() {
   elements.previousPreview.disabled = selectedIndex <= 0;
   elements.nextPreview.disabled = selectedIndex >= rows.length - 1;
   document.querySelector('#previewFavorite').addEventListener('click', () => toggleFavorite(post));
+  document.querySelector('#previewWatchLater').addEventListener('click', () => toggleWatchLater(post));
   document.querySelector('#copyTags').addEventListener('click', () => copyTags(post));
   document.querySelector('#copyOriginalLink').addEventListener('click', () => copyOriginalLink(post));
   document.querySelector('#previewDownload').addEventListener('click', () => {
@@ -1831,6 +1949,16 @@ function registerEvents() {
       closeMobileFilters();
     }
 
+    if (button.hasAttribute('data-aggregate-search')) {
+      saveGalleryScrollPosition();
+      state.aggregateSearch = !state.aggregateSearch;
+      scheduleGalleryScrollRestore();
+      persist();
+      renderControls();
+      fetchPosts({ reset: true });
+      closeMobileFilters();
+    }
+
     if (button.dataset.mediaType) {
       changeMediaType(button.dataset.mediaType);
     }
@@ -1870,6 +1998,10 @@ function registerEvents() {
 
     if (button.dataset.toggleFavorite !== undefined) {
       toggleFavorite(visiblePosts()[Number(button.dataset.toggleFavorite)]);
+    }
+
+    if (button.dataset.toggleWatchLater !== undefined) {
+      toggleWatchLater(visiblePosts()[Number(button.dataset.toggleWatchLater)]);
     }
 
     if (button.dataset.downloadPost !== undefined) {

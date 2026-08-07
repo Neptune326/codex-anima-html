@@ -1,7 +1,7 @@
 import {
   normalizeDownloadConcurrency,
   normalizeDownloadNameTemplate
-} from './library.js?v=2.8.1';
+} from './library.js?v=2.9.0';
 
 const STORAGE_KEY = 'atlas-gallery-v2';
 const LEGACY_STORAGE_KEY = 'atlas-gallery';
@@ -13,6 +13,7 @@ const HISTORY_STORE = 'history';
 
 export const DEFAULT_STATE = {
   source: 'konachan',
+  aggregateSearch: false,
   view: 'popular',
   mediaType: 'image',
   period: 'week',
@@ -39,6 +40,7 @@ export const DEFAULT_STATE = {
   },
   favorites: {},
   history: {},
+  watchLater: {},
   recentSearches: [],
   savedSearches: [],
   smartCollections: [],
@@ -78,6 +80,7 @@ function normalizeState(value = {}) {
   return {
     ...clone(DEFAULT_STATE),
     ...value,
+    aggregateSearch: Boolean(value.aggregateSearch),
     mediaType: value.mediaType || value.media || DEFAULT_STATE.mediaType,
     dimensionFilter: ['all', 'landscape', 'portrait', 'square', 'large'].includes(value.dimensionFilter)
       ? value.dimensionFilter
@@ -87,6 +90,7 @@ function normalizeState(value = {}) {
       ? value.favorites
       : {},
     history: value.history && typeof value.history === 'object' ? value.history : {},
+    watchLater: value.watchLater && typeof value.watchLater === 'object' ? value.watchLater : {},
     recentSearches: Array.isArray(value.recentSearches) ? value.recentSearches : [],
     savedSearches: Array.isArray(value.savedSearches)
       ? value.savedSearches
@@ -333,12 +337,13 @@ export async function resetState() {
 export function exportLibrary(state) {
   const payload = {
     format: 'atlas-gallery-library',
-    version: 3,
+    version: 4,
     exportedAt: new Date().toISOString(),
     favorites: state.favorites,
     history: state.history,
     savedSearches: state.savedSearches,
-    smartCollections: state.smartCollections
+    smartCollections: state.smartCollections,
+    watchLater: state.watchLater
   };
 
   return JSON.stringify(payload, null, 2);
@@ -355,7 +360,7 @@ export function importLibrary(text, state) {
 
   if (
     payload?.format !== 'atlas-gallery-library'
-    || ![2, 3].includes(payload?.version)
+    || ![2, 3, 4].includes(payload?.version)
   ) {
     throw new Error('文件格式或版本不受支持');
   }
@@ -369,6 +374,10 @@ export function importLibrary(text, state) {
     history: {
       ...state.history,
       ...(payload.history || {})
+    },
+    watchLater: {
+      ...state.watchLater,
+      ...(payload.watchLater || {})
     },
     savedSearches: Array.isArray(payload.savedSearches)
       ? payload.savedSearches

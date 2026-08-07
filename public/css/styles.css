@@ -464,6 +464,35 @@ button:active:not(:disabled) {
   padding: 2px;
 }
 
+.source-actions {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
+}
+
+.aggregate-search-button {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 11px;
+  border: 1px solid var(--outline-variant);
+  border-radius: 18px;
+  background: var(--surface);
+  color: var(--on-surface-variant);
+  white-space: nowrap;
+}
+
+.aggregate-search-button:hover,
+.aggregate-search-button.is-active {
+  border-color: transparent;
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+}
+
 .source-chip,
 .filter-chip {
   flex: 0 0 auto;
@@ -1182,11 +1211,11 @@ button:active:not(:disabled) {
 
 .favorite-button,
 .more-button,
-.download-button {
+.download-button,
+.watch-button {
   width: 38px;
   height: 38px;
   flex: 0 0 auto;
-  margin-left: auto;
   color: var(--on-surface-variant);
 }
 
@@ -1200,6 +1229,7 @@ button:active:not(:disabled) {
   border-radius: 50%;
   background: transparent;
   color: var(--on-surface-variant);
+  margin-left: auto;
 }
 
 .download-button:hover {
@@ -1236,6 +1266,20 @@ button:active:not(:disabled) {
 
 .favorite-button.is-active .icon {
   fill: currentColor;
+}
+
+.watch-button {
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.watch-button:hover,
+.watch-button.is-active {
+  background: var(--surface-container-high);
+  color: var(--primary);
 }
 
 .skeleton {
@@ -2406,8 +2450,14 @@ dialog::backdrop {
   }
 
   .pixiv-launch-button {
-    width: max-content;
+    width: 100%;
     min-height: 40px;
+  }
+
+  .source-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-flow: initial;
+    grid-auto-columns: auto;
   }
 
   .source-scroller {
@@ -2530,7 +2580,8 @@ dialog::backdrop {
   .layout-toggle .icon-button,
   .favorite-button,
   .more-button,
-  .download-button {
+  .download-button,
+  .watch-button {
     width: 42px;
     height: 42px;
   }
@@ -2758,7 +2809,7 @@ dialog::backdrop {
     left: 0;
     display: grid;
     min-height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     padding: 5px 8px env(safe-area-inset-bottom);
     border-top: 1px solid var(--outline-variant);
     background: color-mix(in srgb, var(--surface) 96%, transparent);
@@ -3229,7 +3280,8 @@ dialog::backdrop {
   }
 
   .favorite-button,
-  .download-button {
+  .download-button,
+  .watch-button {
     width: 40px;
     height: 40px;
   }

@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="light dark">
   <meta name="description" content="多站点图片与视频图库浏览器">
   <title>Atlas Gallery</title>
-  <link rel="stylesheet" href="/css/styles.css?v=2.8.1">
+  <link rel="stylesheet" href="/css/styles.css?v=2.9.0">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true">
@@ -144,6 +144,11 @@
           <svg class="icon"><use href="#icon-history"></use></svg>
           <span>历史</span>
         </button>
+        <button class="view-tab" type="button" data-view="playlist" role="tab" aria-selected="false">
+          <svg class="icon"><use href="#icon-bookmark"></use></svg>
+          <span>稍后看</span>
+          <span class="tab-count" data-watch-count>0</span>
+        </button>
         <button class="view-tab" type="button" data-view="links" role="tab" aria-selected="false">
           <svg class="icon"><use href="#icon-external"></use></svg>
           <span>友链</span>
@@ -197,10 +202,16 @@
           <span class="source-count" id="sourceCount">0 个站点</span>
         </div>
         <div class="source-scroller" id="sourceList" role="radiogroup" aria-label="站点来源"></div>
-        <button class="pixiv-launch-button" id="pixivButton" type="button" title="打开 Pixiv 作品">
-          <svg class="icon"><use href="#icon-launch"></use></svg>
-          Pixiv 直达
-        </button>
+        <div class="source-actions">
+          <button class="aggregate-search-button" id="aggregateSearchButton" type="button" aria-pressed="false">
+            <svg class="icon"><use href="#icon-more"></use></svg>
+            聚合搜索
+          </button>
+          <button class="pixiv-launch-button" id="pixivButton" type="button" title="打开 Pixiv 作品">
+            <svg class="icon"><use href="#icon-launch"></use></svg>
+            Pixiv 直达
+          </button>
+        </div>
       </div>
 
       <div class="filter-row">
@@ -360,8 +371,16 @@
             <span><strong>Gelbooru</strong><small>gelbooru.com</small></span>
             <svg class="icon" aria-hidden="true"><use href="#icon-launch"></use></svg>
           </a>
-          <a class="friend-link" href="https://aibooru.online/" target="_blank" rel="noopener noreferrer">
-            <span><strong>AIBooru</strong><small>aibooru.online</small></span>
+          <a class="friend-link" href="https://safebooru.org/" target="_blank" rel="noopener noreferrer">
+            <span><strong>Safebooru</strong><small>safebooru.org</small></span>
+            <svg class="icon" aria-hidden="true"><use href="#icon-launch"></use></svg>
+          </a>
+          <a class="friend-link" href="https://wallhaven.cc/" target="_blank" rel="noopener noreferrer">
+            <span><strong>Wallhaven</strong><small>wallhaven.cc</small></span>
+            <svg class="icon" aria-hidden="true"><use href="#icon-launch"></use></svg>
+          </a>
+          <a class="friend-link" href="https://realbooru.com/" target="_blank" rel="noopener noreferrer">
+            <span><strong>Realbooru</strong><small>realbooru.com</small></span>
             <svg class="icon" aria-hidden="true"><use href="#icon-launch"></use></svg>
           </a>
         </div>
@@ -384,6 +403,13 @@
     <button class="mobile-nav-item" type="button" data-view="history" aria-selected="false">
       <svg class="icon"><use href="#icon-history"></use></svg>
       <span>历史</span>
+    </button>
+    <button class="mobile-nav-item" type="button" data-view="playlist" aria-selected="false">
+      <span class="mobile-nav-icon">
+        <svg class="icon"><use href="#icon-bookmark"></use></svg>
+        <span class="mobile-nav-badge" data-watch-count>0</span>
+      </span>
+      <span>稍后看</span>
     </button>
     <button class="mobile-nav-item" type="button" data-view="links" aria-selected="false">
       <svg class="icon"><use href="#icon-external"></use></svg>
@@ -662,6 +688,6 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script type="module" src="/js/app.js?v=2.8.1"></script>
+  <script type="module" src="/js/app.js?v=2.9.0"></script>
 </body>
 </html>

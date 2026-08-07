@@ -546,6 +546,23 @@ export const SOURCES = {
       return parseGelbooru('gelbooru', payload);
     }
   },
+  realbooru: {
+    name: 'Realbooru',
+    shortName: 'Realbooru',
+    home: 'https://realbooru.com/',
+    description: 'Gelbooru 协议动漫标签图库',
+    capabilities: { image: true, date: false, video: false },
+    buildUrl(query) {
+      return buildGelbooruUrl('https://realbooru.com/index.php', query, false);
+    },
+    buildTagUrl(query) {
+      return buildGelbooruTagUrl('https://realbooru.com/index.php', query);
+    },
+    parseTags: parseTagRows,
+    parse(payload) {
+      return parseGelbooru('realbooru', payload);
+    }
+  },
   xbooru: {
     name: 'Xbooru',
     shortName: 'Xbooru',

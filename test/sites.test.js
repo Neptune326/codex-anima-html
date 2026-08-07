@@ -11,7 +11,7 @@ test('site adapters build allowlisted API URLs', async () => {
     endDate: '2026-07-26'
   });
 
-  assert.equal(Object.keys(SOURCES).length, 22);
+  assert.equal(Object.keys(SOURCES).length, 23);
   assert.equal(new URL(SOURCES.yandere.buildUrl(query)).hostname, 'yande.re');
   assert.equal(new URL(SOURCES.konachan.buildUrl(query)).pathname, '/post.json');
   assert.equal(new URL(SOURCES.konachanNet.buildUrl(query)).hostname, 'konachan.net');
@@ -34,6 +34,7 @@ test('site adapters build allowlisted API URLs', async () => {
   assert.equal(new URL(SOURCES.manebooru.buildUrl(query)).hostname, 'manebooru.art');
   assert.equal(new URL(SOURCES.twibooru.buildUrl(query)).pathname, '/api/v3/search/posts');
   assert.equal(new URL(SOURCES.wallhaven.buildUrl(query)).hostname, 'wallhaven.cc');
+  assert.equal(new URL(SOURCES.realbooru.buildUrl(query)).hostname, 'realbooru.com');
   assert.equal(SOURCES.yandere.capabilities.image, true);
   assert.equal(SOURCES.yandere.capabilities.video, false);
   assert.equal(SOURCES.konachan.capabilities.video, false);
