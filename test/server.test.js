@@ -157,7 +157,7 @@ test('server serves health and static resources without hanging sockets', async 
     assert.equal(health.status, 200);
     assert.deepEqual(JSON.parse(health.body), {
       ok: true,
-      version: '2.9.0',
+      version: '2.10.0',
       proxyMode: app.proxyMode
     });
 
@@ -183,12 +183,14 @@ test('server serves health and static resources without hanging sockets', async 
     assert.match(page.body, /class="friend-links"/);
     assert.match(page.body, /data-view="links"/);
     assert.match(page.body, /id="friendLinks"[^>]*hidden/);
-    assert.match(page.body, /styles\.css\?v=2\.9\.0/);
+    assert.match(page.body, /styles\.css\?v=2\.10\.0/);
     assert.match(page.body, /data-view="playlist"/);
-    assert.match(page.body, /id="aggregateSearchButton"/);
+    assert.doesNotMatch(page.body, /id="aggregateSearchButton"/);
     assert.match(page.body, /href="https:\/\/realbooru\.com\/"/);
     assert.doesNotMatch(page.body, /href="https:\/\/aibooru\.online\/"[^>]*class="friend-link"/);
     assert.match(page.body, /href="https:\/\/hanime1\.me\/"/);
+    assert.match(page.body, /href="https:\/\/nhentai\.net\/"/);
+    assert.match(page.body, /friendMangaTitle/);
     assert.match(page.body, /target="_blank" rel="noopener noreferrer"/);
 
     const module = await request(server, '/js/app.js', 'HEAD');
@@ -206,7 +208,9 @@ test('server serves health and static resources without hanging sockets', async 
     assert.match(appScript.body, /video\.videoWidth > video\.videoHeight/);
     assert.match(appScript.body, /state\.view === 'links'/);
     assert.match(appScript.body, /friendLinks\.hidden = !linksView/);
-    assert.match(appScript.body, /state\.aggregateSearch/);
+    assert.doesNotMatch(appScript.body, /state\.aggregateSearch/);
+    assert.match(appScript.body, /previewSwipeStep/);
+    assert.match(appScript.body, /renderGallery\(\{ append: !reset \}\)/);
     assert.match(appScript.body, /toggleWatchLater/);
     assert.match(appScript.headers['cache-control'], /no-store/);
 
@@ -223,10 +227,12 @@ test('server serves health and static resources without hanging sockets', async 
     assert.match(styles.body, /\.preview-media video\.is-landscape[\s\S]*width:\s*100%;[\s\S]*height:\s*auto;/);
     assert.match(styles.body, /\.preview-media video\.is-portrait\s*\{[^}]*height:\s*100%;/s);
     assert.match(styles.body, /\.friend-links-grid\s*\{[^}]*grid-template-columns:\s*repeat\(auto-fit,/s);
+    assert.match(styles.body, /\.friend-link-groups\s*\{/);
     assert.match(styles.body, /@media \(max-width:\s*640px\)[\s\S]*\.friend-links-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\);/s);
     assert.match(styles.body, /grid-template-columns:\s*repeat\(6,\s*minmax\(0,\s*1fr\)\)/);
     assert.match(styles.body, /\.source-actions\s*\{/);
     assert.match(styles.body, /\.watch-button\s*\{/);
+    assert.match(styles.body, /touch-action:\s*pan-y/);
 
     const missing = await request(server, '/missing-resource');
     assert.equal(missing.status, 404);

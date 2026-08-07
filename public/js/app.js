@@ -4,7 +4,7 @@ import {
   createQuery,
   getSource,
   ratingName
-} from './sites.js?v=2.9.0';
+} from './sites.js?v=2.10.0';
 import {
   clampPreviewPan,
   downloadFilename,
@@ -14,6 +14,7 @@ import {
   matchesSmartCollection,
   mediaIdentity,
   nextVideoIndex,
+  previewSwipeStep,
   parsePixivArtworkId,
   replaceCurrentTag,
   retryDelay,
@@ -22,7 +23,7 @@ import {
   sourceSupportsMedia,
   suggestTags,
   translateTag
-} from './library.js?v=2.9.0';
+} from './library.js?v=2.10.0';
 import {
   exportLibrary,
   hydrateLibrary,
@@ -31,13 +32,12 @@ import {
   resetState,
   saveLibrary,
   saveState
-} from './storage.js?v=2.9.0';
+} from './storage.js?v=2.10.0';
 
 const elements = {
   sourceList: document.querySelector('#sourceList'),
   sourceCount: document.querySelector('#sourceCount'),
   pixivButton: document.querySelector('#pixivButton'),
-  aggregateSearchButton: document.querySelector('#aggregateSearchButton'),
   pixivDialog: document.querySelector('#pixivDialog'),
   pixivForm: document.querySelector('#pixivForm'),
   pixivInput: document.querySelector('#pixivInput'),
@@ -153,6 +153,8 @@ let previewZoom = 1;
 let previewPanX = 0;
 let previewPanY = 0;
 let previewDrag = null;
+let previewGesture = null;
+let lastPreviewTap = null;
 let pendingScrollRestoreKey = '';
 let scrollSaveFrame = 0;
 let galleryError = '';
@@ -173,18 +175,6 @@ const lastRequestAt = new Map();
 const RESPONSE_CACHE_PREFIX = 'atlas-gallery-response:';
 const RESPONSE_CACHE_TTL_MS = 5 * 60 * 1000;
 const MIN_SOURCE_REQUEST_INTERVAL_MS = 350;
-const AGGREGATE_SOURCE_IDS = Object.freeze([
-  'yandere',
-  'konachan',
-  'gelbooru',
-  'xbooru',
-  'danbooru',
-  'sankaku',
-  'safebooru',
-  'wallhaven',
-  'realbooru'
-]);
-
 function icon(name) {
   return `<svg class="icon"><use href="#icon-${name}"></use></svg>`;
 }
@@ -246,7 +236,6 @@ function currentSource() {
 
 function popularContextKey() {
   return JSON.stringify([
-    state.aggregateSearch,
     state.source,
     state.mediaType,
     state.period,
@@ -348,20 +337,8 @@ function renderSources() {
   });
 
   const mediaName = state.mediaType === 'video' ? '视频' : '图片';
-  elements.sourceCount.textContent = state.aggregateSearch
-    ? `${AGGREGATE_SOURCE_IDS.filter(sourceId => sourceSupportsMedia(SOURCES[sourceId], state.mediaType)).length} 个聚合站点`
-    : `${visibleSources.length} 个${mediaName}站点`;
-  const aggregateButton = `
-    <button
-      class="source-chip aggregate-source-chip ${state.aggregateSearch ? 'is-selected' : ''}"
-      type="button"
-      data-aggregate-search
-      role="radio"
-      aria-checked="${state.aggregateSearch}"
-      title="同时搜索多个普通图片与动画站点"
-    >${icon('more')}<span class="source-name">聚合搜索</span></button>
-  `;
-  elements.sourceList.innerHTML = aggregateButton + visibleSources.map(([sourceId, source]) => {
+  elements.sourceCount.textContent = `${visibleSources.length} 个${mediaName}站点`;
+  elements.sourceList.innerHTML = visibleSources.map(([sourceId, source]) => {
     const health = sourceHealth[sourceId];
     const healthTitle = health.status === 'online'
       ? `在线 · ${health.latencyMs} ms · HTTP ${health.httpStatus}`
@@ -371,12 +348,12 @@ function renderSources() {
 
     return `
     <button
-      class="source-chip ${!state.aggregateSearch && sourceId === state.source ? 'is-selected' : ''}"
+      class="source-chip ${sourceId === state.source ? 'is-selected' : ''}"
       type="button"
       data-source="${sourceId}"
       title="${escapeHtml(`${source.description} · ${healthTitle}`)}"
       role="radio"
-      aria-checked="${!state.aggregateSearch && sourceId === state.source}"
+      aria-checked="${sourceId === state.source}"
     >
       <span class="source-health is-${health.status}" aria-hidden="true"></span>
       <span class="source-monogram" aria-hidden="true">${escapeHtml(source.shortName.slice(0, 1).toUpperCase())}</span>
@@ -636,8 +613,6 @@ function renderControls() {
   elements.watchCounts.forEach(element => {
     element.textContent = Object.keys(state.watchLater).length;
   });
-  elements.aggregateSearchButton.classList.toggle('is-active', state.aggregateSearch);
-  elements.aggregateSearchButton.setAttribute('aria-pressed', String(state.aggregateSearch));
 
   renderSources();
   renderRecentSearches();
@@ -847,11 +822,20 @@ function renderGallery({ append = false } = {}) {
 
   const rows = visiblePosts();
   const renderedRows = rows.slice(0, renderLimit);
+  elements.gallery.querySelector('.gallery-load-error')?.remove();
   const existingCards = [...elements.gallery.querySelectorAll('.media-card')];
+  const loadingError = galleryError && renderedRows.length
+    ? `<div class="gallery-load-error">${statePanel({
+        title: '后续内容加载失败',
+        description: galleryError,
+        iconName: 'retry',
+        action: '<button class="filled-button" type="button" data-retry-gallery>重新加载</button>'
+      })}</div>`
+    : '';
   const canAppend = append
-    && !galleryError
     && existingCards.length > 0
-    && existingCards.length < renderedRows.length
+    && existingCards.length <= renderedRows.length
+    && (existingCards.length < renderedRows.length || Boolean(loadingError))
     && existingCards.every((card, index) => {
       return card.dataset.postKey === favoriteKey(renderedRows[index]);
     });
@@ -869,14 +853,12 @@ function renderGallery({ append = false } = {}) {
         return postCard(post, existingCards.length + index);
       }).join('')
     );
+    if (loadingError) {
+      elements.gallery.insertAdjacentHTML('beforeend', loadingError);
+    }
   } else {
     elements.gallery.innerHTML = renderedRows.length
-      ? renderedRows.map(postCard).join('') + (galleryError ? statePanel({
-        title: '后续内容加载失败',
-        description: galleryError,
-        iconName: 'retry',
-        action: '<button class="filled-button" type="button" data-retry-gallery>重新加载</button>'
-      }) : '')
+      ? renderedRows.map(postCard).join('') + loadingError
       : emptyState();
   }
 
@@ -1016,7 +998,7 @@ function filterPosts(rows) {
   });
 }
 
-function mergeUniquePosts(rows) {
+function mergeUniquePosts(rows, preserveOrder = false) {
   const unique = new Map();
   [...posts, ...rows].forEach(post => {
     const identity = mediaIdentity(post) || favoriteKey(post);
@@ -1025,7 +1007,8 @@ function mergeUniquePosts(rows) {
       unique.set(identity, post);
     }
   });
-  return [...unique.values()].sort((left, right) => right.score - left.score);
+  const merged = [...unique.values()];
+  return preserveOrder ? merged : merged.sort((left, right) => right.score - left.score);
 }
 
 async function fetchPosts({ reset = false, force = false } = {}) {
@@ -1056,56 +1039,30 @@ async function fetchPosts({ reset = false, force = false } = {}) {
   try {
     let rawPosts = [];
     let filteredPosts = [];
-    let failedSources = [];
-    if (state.aggregateSearch) {
-      const sourceIds = AGGREGATE_SOURCE_IDS.filter(sourceId => {
-        return sourceSupportsMedia(SOURCES[sourceId], state.mediaType);
-      });
-      const results = await Promise.allSettled(sourceIds.map(async sourceId => {
-        const source = SOURCES[sourceId];
-        const payload = await requestWithRetry(source.buildUrl(currentQuery()).href, controller.signal, force);
-        const rows = source.parse(payload);
-        return { sourceId, rows };
-      }));
-      results.forEach(result => {
-        if (result.status === 'fulfilled') {
-          rawPosts.push(...result.value.rows);
-        } else {
-          failedSources.push(result.reason?.message || '请求失败');
-        }
-      });
-      if (!rawPosts.length && failedSources.length) {
-        throw new Error(`全部聚合站点请求失败（${failedSources.length} 个）`);
-      }
-    } else {
-      const source = currentSource();
-      const upstreamUrl = source.buildUrl(currentQuery()).href;
-      const payload = await requestWithRetry(upstreamUrl, controller.signal, force);
-      rawPosts = source.parse(payload);
-    }
+    const source = currentSource();
+    const upstreamUrl = source.buildUrl(currentQuery()).href;
+    const payload = await requestWithRetry(upstreamUrl, controller.signal, force);
+    rawPosts = source.parse(payload);
 
     if (sequence !== requestSequence) {
       return;
     }
 
     filteredPosts = filterPosts(rawPosts);
-    posts = mergeUniquePosts(filteredPosts);
+    posts = mergeUniquePosts(filteredPosts, !reset);
     loadedPopularContextKey = popularContextKey();
     hasMore = rawPosts.length >= PAGE_SIZE;
     currentPage += 1;
-    galleryError = failedSources.length
-      ? `聚合搜索中有 ${failedSources.length} 个站点请求失败，已显示其余结果`
-      : '';
-    renderGallery();
+    galleryError = '';
+    renderGallery({ append: !reset });
   } catch (error) {
     if (error.name === 'AbortError' || sequence !== requestSequence) {
       return;
     }
 
-    const sourceName = state.aggregateSearch ? '聚合搜索' : currentSource().name;
-    galleryError = `${sourceName} 请求失败：${error.message}`;
+    galleryError = `${currentSource().name} 请求失败：${error.message}`;
     hasMore = false;
-    renderGallery();
+    renderGallery({ append: !reset });
   } finally {
     if (sequence === requestSequence) {
       isLoading = false;
@@ -1146,7 +1103,6 @@ function changeSource(sourceId) {
   remoteTagCandidates = [];
   saveGalleryScrollPosition();
   state.source = sourceId;
-  state.aggregateSearch = false;
   scheduleGalleryScrollRestore();
   renderControls();
   fetchPosts({ reset: true });
@@ -1497,6 +1453,8 @@ function renderPreview() {
   previewPanX = 0;
   previewPanY = 0;
   previewDrag = null;
+  previewGesture = null;
+  lastPreviewTap = null;
   elements.previewDialog.classList.toggle('hide-details', state.settings.hideDetails);
   elements.previewZoom.hidden = post.type === 'video';
   elements.previewMedia.innerHTML = post.type === 'video'
@@ -1949,16 +1907,6 @@ function registerEvents() {
       closeMobileFilters();
     }
 
-    if (button.hasAttribute('data-aggregate-search')) {
-      saveGalleryScrollPosition();
-      state.aggregateSearch = !state.aggregateSearch;
-      scheduleGalleryScrollRestore();
-      persist();
-      renderControls();
-      fetchPosts({ reset: true });
-      closeMobileFilters();
-    }
-
     if (button.dataset.mediaType) {
       changeMediaType(button.dataset.mediaType);
     }
@@ -2373,7 +2321,20 @@ function registerEvents() {
   });
   elements.previewMedia.addEventListener('pointerdown', event => {
     const image = event.target.closest('img');
-    if (!image || previewZoom <= 1 || event.button !== 0) {
+    const media = event.target.closest('img, video');
+    if (!media || event.button !== 0) {
+      return;
+    }
+    if (event.pointerType === 'touch') {
+      previewGesture = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        startedAt: performance.now(),
+        target: media
+      };
+    }
+    if (!image || previewZoom <= 1) {
       return;
     }
     event.preventDefault();
@@ -2396,14 +2357,42 @@ function registerEvents() {
     applyPreviewTransform();
   });
   const finishPreviewDrag = event => {
-    if (!previewDrag || previewDrag.pointerId !== event.pointerId) {
+    if (previewDrag?.pointerId === event.pointerId) {
+      elements.previewMedia.querySelector('img')?.classList.remove('is-dragging');
+      previewDrag = null;
+    }
+    if (!previewGesture || previewGesture.pointerId !== event.pointerId) {
       return;
     }
-    elements.previewMedia.querySelector('img')?.classList.remove('is-dragging');
-    previewDrag = null;
+    const gesture = previewGesture;
+    previewGesture = null;
+    const deltaX = event.clientX - gesture.startX;
+    const deltaY = event.clientY - gesture.startY;
+    const duration = performance.now() - gesture.startedAt;
+    const step = previewSwipeStep(deltaX, deltaY, duration, previewZoom);
+    if (step) {
+      lastPreviewTap = null;
+      movePreview(step);
+      return;
+    }
+    if (gesture.target.tagName !== 'IMG' || Math.hypot(deltaX, deltaY) > 18 || duration > 350) {
+      return;
+    }
+    const now = performance.now();
+    const previousTap = lastPreviewTap;
+    lastPreviewTap = { at: now, x: event.clientX, y: event.clientY };
+    if (previousTap
+      && now - previousTap.at <= 320
+      && Math.hypot(event.clientX - previousTap.x, event.clientY - previousTap.y) <= 32) {
+      lastPreviewTap = null;
+      setPreviewZoom(previewZoom > 1 ? 1 : 2);
+    }
   };
   elements.previewMedia.addEventListener('pointerup', finishPreviewDrag);
-  elements.previewMedia.addEventListener('pointercancel', finishPreviewDrag);
+  elements.previewMedia.addEventListener('pointercancel', event => {
+    previewGesture = null;
+    finishPreviewDrag(event);
+  });
   elements.previewDialog.addEventListener('close', () => {
     const post = visiblePosts()[selectedIndex];
     saveVideoProgress(post, elements.previewMedia.querySelector('video'), true);

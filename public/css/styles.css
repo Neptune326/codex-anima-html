@@ -472,27 +472,6 @@ button:active:not(:disabled) {
   grid-auto-columns: max-content;
 }
 
-.aggregate-search-button {
-  display: inline-flex;
-  min-height: 34px;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 0 11px;
-  border: 1px solid var(--outline-variant);
-  border-radius: 18px;
-  background: var(--surface);
-  color: var(--on-surface-variant);
-  white-space: nowrap;
-}
-
-.aggregate-search-button:hover,
-.aggregate-search-button.is-active {
-  border-color: transparent;
-  background: var(--primary-container);
-  color: var(--on-primary-container);
-}
-
 .source-chip,
 .filter-chip {
   flex: 0 0 auto;
@@ -1397,6 +1376,38 @@ button:active:not(:disabled) {
   color: var(--primary);
 }
 
+.friend-link-groups {
+  display: grid;
+  gap: 24px;
+}
+
+.friend-link-group {
+  display: grid;
+  gap: 10px;
+}
+
+.friend-link-group-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.friend-link-group-heading h3,
+.friend-link-group-heading span {
+  margin: 0;
+}
+
+.friend-link-group-heading h3 {
+  color: var(--on-surface);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.friend-link-group-heading span {
+  color: var(--on-surface-variant);
+  font-size: 11px;
+}
+
 .friend-links-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
@@ -1430,6 +1441,21 @@ button:active:not(:disabled) {
 .friend-link small {
   display: block;
   min-width: 0;
+}
+
+.friend-link em {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: 6px;
+  background: var(--error-container);
+  color: var(--on-error-container);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+  vertical-align: 1px;
 }
 
 .friend-link span {
@@ -1873,6 +1899,8 @@ dialog::backdrop {
   height: 100%;
   place-items: center;
   overflow: hidden;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
 }
 
 .preview-media img,
@@ -1887,11 +1915,12 @@ dialog::backdrop {
   transition: transform var(--motion-duration);
   transform-origin: center;
   user-select: none;
-  touch-action: none;
+  touch-action: pan-y;
 }
 
 .preview-media img.is-zoomed {
   cursor: grab;
+  touch-action: none;
 }
 
 .preview-media img.is-dragging {
@@ -2050,6 +2079,7 @@ dialog::backdrop {
   width: auto;
   height: auto;
   object-position: center;
+  touch-action: pan-y;
 }
 
 .preview-media video.is-landscape,
@@ -2455,7 +2485,7 @@ dialog::backdrop {
   }
 
   .source-actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     grid-auto-flow: initial;
     grid-auto-columns: auto;
   }
@@ -3093,6 +3123,14 @@ dialog::backdrop {
     margin-top: 0;
     padding: 16px;
     border-radius: 18px;
+  }
+
+  .friend-links-heading {
+    align-items: flex-start;
+  }
+
+  .friend-link-groups {
+    gap: 20px;
   }
 
   .friend-links-grid {

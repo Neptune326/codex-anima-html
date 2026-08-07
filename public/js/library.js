@@ -229,6 +229,16 @@ export function clampPreviewPan(x, y, zoom, viewportWidth, viewportHeight) {
   };
 }
 
+export function previewSwipeStep(deltaX, deltaY, durationMs, zoom = 1) {
+  const horizontal = Math.abs(Number(deltaX) || 0);
+  const vertical = Math.abs(Number(deltaY) || 0);
+  const duration = Number(durationMs) || 0;
+  if (Number(zoom) > 1 || duration > 700 || horizontal < 56 || horizontal < vertical * 1.5) {
+    return 0;
+  }
+  return deltaX < 0 ? 1 : -1;
+}
+
 export function normalizeDownloadConcurrency(value) {
   return Math.min(4, Math.max(1, Math.round(Number(value) || 2)));
 }

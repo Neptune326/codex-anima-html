@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="light dark">
   <meta name="description" content="多站点图片与视频图库浏览器">
   <title>Atlas Gallery</title>
-  <link rel="stylesheet" href="/css/styles.css?v=2.9.0">
+  <link rel="stylesheet" href="/css/styles.css?v=2.10.0">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true">
@@ -203,10 +203,6 @@
         </div>
         <div class="source-scroller" id="sourceList" role="radiogroup" aria-label="站点来源"></div>
         <div class="source-actions">
-          <button class="aggregate-search-button" id="aggregateSearchButton" type="button" aria-pressed="false">
-            <svg class="icon"><use href="#icon-more"></use></svg>
-            聚合搜索
-          </button>
           <button class="pixiv-launch-button" id="pixivButton" type="button" title="打开 Pixiv 作品">
             <svg class="icon"><use href="#icon-launch"></use></svg>
             Pixiv 直达
@@ -350,39 +346,79 @@
           </div>
           <svg class="icon" aria-hidden="true"><use href="#icon-external"></use></svg>
         </div>
-        <div class="friend-links-grid">
-          <a class="friend-link" href="https://hanime1.me/" target="_blank" rel="noopener noreferrer">
-            <span><strong>HAnime1</strong><small>hanime1.me</small></span>
-            <svg class="icon" aria-hidden="true"><use href="#icon-launch"></use></svg>
-          </a>
-          <a class="friend-link" href="https://hanime.tv/" target="_blank" rel="noopener noreferrer">
-            <span><strong>HAnime</strong><small>hanime.tv</small></span>
-            <svg class="icon" aria-hidden="true"><use href="#icon-launch"></use></svg>
-          </a>
-          <a class="friend-link" href="https://www.sankakucomplex.com/" target="_blank" rel="noopener noreferrer">
-            <span><strong>Sankaku Complex</strong><small>sankakucomplex.com</small></span>
-            <svg class="icon" aria-hidden="true"><use href="#icon-launch"></use></svg>
-          </a>
-          <a class="friend-link" href="https://danbooru.donmai.us/" target="_blank" rel="noopener noreferrer">
-            <span><strong>Danbooru</strong><small>danbooru.donmai.us</small></span>
-            <svg class="icon" aria-hidden="true"><use href="#icon-launch"></use></svg>
-          </a>
-          <a class="friend-link" href="https://gelbooru.com/" target="_blank" rel="noopener noreferrer">
-            <span><strong>Gelbooru</strong><small>gelbooru.com</small></span>
-            <svg class="icon" aria-hidden="true"><use href="#icon-launch"></use></svg>
-          </a>
-          <a class="friend-link" href="https://safebooru.org/" target="_blank" rel="noopener noreferrer">
-            <span><strong>Safebooru</strong><small>safebooru.org</small></span>
-            <svg class="icon" aria-hidden="true"><use href="#icon-launch"></use></svg>
-          </a>
-          <a class="friend-link" href="https://wallhaven.cc/" target="_blank" rel="noopener noreferrer">
-            <span><strong>Wallhaven</strong><small>wallhaven.cc</small></span>
-            <svg class="icon" aria-hidden="true"><use href="#icon-launch"></use></svg>
-          </a>
-          <a class="friend-link" href="https://realbooru.com/" target="_blank" rel="noopener noreferrer">
-            <span><strong>Realbooru</strong><small>realbooru.com</small></span>
-            <svg class="icon" aria-hidden="true"><use href="#icon-launch"></use></svg>
-          </a>
+        <div class="friend-link-groups">
+          <section class="friend-link-group" aria-labelledby="friendIllustrationTitle">
+            <div class="friend-link-group-heading">
+              <h3 id="friendIllustrationTitle">插画</h3>
+              <span>Illustration</span>
+            </div>
+            <div class="friend-links-grid">
+              <a class="friend-link" href="https://www.sankakucomplex.com/" target="_blank" rel="noopener noreferrer">
+                <span><strong>Sankaku Complex</strong><small>sankakucomplex.com</small></span>
+                <svg class="icon" aria-hidden="true"><use href="#icon-launch"></use></svg>
+              </a>
+              <a class="friend-link" href="https://danbooru.donmai.us/" target="_blank" rel="noopener noreferrer">
+                <span><strong>Danbooru</strong><small>danbooru.donmai.us</small></span>
+                <svg class="icon" aria-hidden="true"><use href="#icon-launch"></use></svg>
+              </a>
+              <a class="friend-link" href="https://gelbooru.com/" target="_blank" rel="noopener noreferrer">
+                <span><strong>Gelbooru</strong><small>gelbooru.com</small></span>
+                <svg class="icon" aria-hidden="true"><use href="#icon-launch"></use></svg>
+              </a>
+              <a class="friend-link" href="https://safebooru.org/" target="_blank" rel="noopener noreferrer">
+                <span><strong>Safebooru</strong><small>safebooru.org</small></span>
+                <svg class="icon" aria-hidden="true"><use href="#icon-launch"></use></svg>
+              </a>
+              <a class="friend-link" href="https://wallhaven.cc/" target="_blank" rel="noopener noreferrer">
+                <span><strong>Wallhaven</strong><small>wallhaven.cc</small></span>
+                <svg class="icon" aria-hidden="true"><use href="#icon-launch"></use></svg>
+              </a>
+              <a class="friend-link" href="https://realbooru.com/" target="_blank" rel="noopener noreferrer">
+                <span><strong>Realbooru</strong><small>realbooru.com</small></span>
+                <svg class="icon" aria-hidden="true"><use href="#icon-launch"></use></svg>
+              </a>
+            </div>
+          </section>
+          <section class="friend-link-group" aria-labelledby="friendAnimationTitle">
+            <div class="friend-link-group-heading">
+              <h3 id="friendAnimationTitle">动画</h3>
+              <span>Animation</span>
+            </div>
+            <div class="friend-links-grid">
+              <a class="friend-link" href="https://hanime1.me/" target="_blank" rel="noopener noreferrer">
+                <span><strong>HAnime1</strong><small>hanime1.me</small></span>
+                <svg class="icon" aria-hidden="true"><use href="#icon-launch"></use></svg>
+              </a>
+              <a class="friend-link" href="https://hanime.tv/" target="_blank" rel="noopener noreferrer">
+                <span><strong>HAnime</strong><small>hanime.tv</small></span>
+                <svg class="icon" aria-hidden="true"><use href="#icon-launch"></use></svg>
+              </a>
+            </div>
+          </section>
+          <section class="friend-link-group" aria-labelledby="friendMangaTitle">
+            <div class="friend-link-group-heading">
+              <h3 id="friendMangaTitle">漫画</h3>
+              <span>含成人内容，请自行判断</span>
+            </div>
+            <div class="friend-links-grid">
+              <a class="friend-link" href="https://nhentai.net/" target="_blank" rel="noopener noreferrer">
+                <span><strong>nhentai <em>18+</em></strong><small>nhentai.net</small></span>
+                <svg class="icon" aria-hidden="true"><use href="#icon-launch"></use></svg>
+              </a>
+              <a class="friend-link" href="https://hitomi.la/" target="_blank" rel="noopener noreferrer">
+                <span><strong>Hitomi.la <em>18+</em></strong><small>hitomi.la</small></span>
+                <svg class="icon" aria-hidden="true"><use href="#icon-launch"></use></svg>
+              </a>
+              <a class="friend-link" href="https://e-hentai.org/" target="_blank" rel="noopener noreferrer">
+                <span><strong>E-Hentai <em>18+</em></strong><small>e-hentai.org</small></span>
+                <svg class="icon" aria-hidden="true"><use href="#icon-launch"></use></svg>
+              </a>
+              <a class="friend-link" href="https://hentaifox.com/" target="_blank" rel="noopener noreferrer">
+                <span><strong>HentaiFox <em>18+</em></strong><small>hentaifox.com</small></span>
+                <svg class="icon" aria-hidden="true"><use href="#icon-launch"></use></svg>
+              </a>
+            </div>
+          </section>
         </div>
       </section>
     </main>
@@ -688,6 +724,6 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script type="module" src="/js/app.js?v=2.9.0"></script>
+  <script type="module" src="/js/app.js?v=2.10.0"></script>
 </body>
 </html>

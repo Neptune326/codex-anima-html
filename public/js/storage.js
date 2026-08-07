@@ -1,7 +1,7 @@
 import {
   normalizeDownloadConcurrency,
   normalizeDownloadNameTemplate
-} from './library.js?v=2.9.0';
+} from './library.js?v=2.10.0';
 
 const STORAGE_KEY = 'atlas-gallery-v2';
 const LEGACY_STORAGE_KEY = 'atlas-gallery';
@@ -13,7 +13,6 @@ const HISTORY_STORE = 'history';
 
 export const DEFAULT_STATE = {
   source: 'konachan',
-  aggregateSearch: false,
   view: 'popular',
   mediaType: 'image',
   period: 'week',
@@ -80,7 +79,6 @@ function normalizeState(value = {}) {
   return {
     ...clone(DEFAULT_STATE),
     ...value,
-    aggregateSearch: Boolean(value.aggregateSearch),
     mediaType: value.mediaType || value.media || DEFAULT_STATE.mediaType,
     dimensionFilter: ['all', 'landscape', 'portrait', 'square', 'large'].includes(value.dimensionFilter)
       ? value.dimensionFilter

@@ -112,6 +112,16 @@ test('gallery view keys isolate scroll positions and preview panning stays bound
   assert.deepEqual(clampPreviewPan(120, -80, 1, 800, 600), { x: 0, y: 0 });
 });
 
+test('preview swipe detection only accepts deliberate horizontal gestures', async () => {
+  const { previewSwipeStep } = await import('../public/js/library.js');
+
+  assert.equal(previewSwipeStep(-120, 12, 260, 1), 1);
+  assert.equal(previewSwipeStep(120, 12, 260, 1), -1);
+  assert.equal(previewSwipeStep(-120, 90, 260, 1), 0);
+  assert.equal(previewSwipeStep(-120, 12, 260, 2), 0);
+  assert.equal(previewSwipeStep(-30, 4, 260, 1), 0);
+});
+
 test('nextVideoIndex skips images and finds the next playable video', async () => {
   const { nextVideoIndex } = await import('../public/js/library.js');
   const posts = [
