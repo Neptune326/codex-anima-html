@@ -428,17 +428,21 @@ export const SOURCES = {
     shortName: 'Sankaku',
     home: 'https://chan.sankakucomplex.com/',
     description: 'Sankaku Complex 媒体频道',
-    capabilities: { image: true, date: true, video: true },
+    capabilities: { image: true, date: true, dateMediaTypes: ['image'], video: true },
     buildUrl(query) {
-      const url = new URL('https://capi-v2.sankakucomplex.com/posts');
+      const video = query.mediaType === 'video';
+      const url = new URL(video
+        ? 'https://sankakuapi.com/v2/posts'
+        : 'https://capi-v2.sankakucomplex.com/posts');
       return addSearchParams(url, {
         limit: PAGE_SIZE,
         page: query.page,
+        lang: video ? 'en' : '',
         tags: joinTags(query, [
           'order:popular',
-          query.mediaType === 'video' ? 'video' : '-video',
-          ratingTag(query),
-          dateTag(query)
+          video ? 'video' : '-video',
+          video ? '' : ratingTag(query),
+          video ? '' : dateTag(query)
         ])
       });
     },

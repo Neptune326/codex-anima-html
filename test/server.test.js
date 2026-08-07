@@ -104,6 +104,10 @@ test('Sankaku API requests use browser-compatible headers', () => {
   assert.equal(headers.Accept, 'application/vnd.sankaku.api+json;v=2');
   assert.equal(headers.Referer, 'https://chan.sankakucomplex.com/');
   assert.match(headers['User-Agent'], /^Mozilla\/5\.0/);
+  const videoHeaders = upstreamHeaders(new URL('https://sankakuapi.com/v2/posts'));
+  assert.equal(videoHeaders.Origin, 'https://www.sankakucomplex.com');
+  assert.equal(videoHeaders.Referer, 'https://www.sankakucomplex.com/');
+  assert.match(videoHeaders['User-Agent'], /^Mozilla\/5\.0/);
   assert.equal(
     upstreamHeaders(new URL('https://api.rule34.xxx/index.php')).Referer,
     'https://rule34.xxx/'
@@ -153,7 +157,7 @@ test('server serves health and static resources without hanging sockets', async 
     assert.equal(health.status, 200);
     assert.deepEqual(JSON.parse(health.body), {
       ok: true,
-      version: '2.11.0',
+      version: '2.11.1',
       proxyMode: app.proxyMode
     });
 
@@ -179,7 +183,7 @@ test('server serves health and static resources without hanging sockets', async 
     assert.match(page.body, /class="friend-links"/);
     assert.match(page.body, /data-view="links"/);
     assert.match(page.body, /id="friendLinks"[^>]*hidden/);
-    assert.match(page.body, /styles\.css\?v=2\.11\.0/);
+    assert.match(page.body, /styles\.css\?v=2\.11\.1/);
     assert.match(page.body, /data-view="playlist"/);
     assert.doesNotMatch(page.body, /id="aggregateSearchButton"/);
     assert.doesNotMatch(page.body, /href="https:\/\/(?:realbooru|gelbooru)\.com\/"/);
@@ -206,6 +210,7 @@ test('server serves health and static resources without hanging sockets', async 
     assert.match(appScript.body, /friendLinks\.hidden = !linksView/);
     assert.doesNotMatch(appScript.body, /state\.aggregateSearch/);
     assert.match(appScript.body, /previewSwipeStep/);
+    assert.match(appScript.body, /dateMediaTypes\.includes\(state\.mediaType\)/);
     assert.match(appScript.body, /renderGallery\(\{ append: !reset \}\)/);
     assert.match(appScript.body, /toggleWatchLater/);
     assert.match(appScript.headers['cache-control'], /no-store/);
@@ -301,6 +306,7 @@ test('retained source APIs are allowlisted and removed sources are rejected', ()
     validateTarget('https://capi-v2.sankakucomplex.com/posts').hostname,
     'capi-v2.sankakucomplex.com'
   );
+  assert.equal(validateTarget('https://sankakuapi.com/v2/posts').hostname, 'sankakuapi.com');
   assert.equal(
     validateDownloadTarget('https://cdn.aibooru.download/file/sample.webp').hostname,
     'cdn.aibooru.download'

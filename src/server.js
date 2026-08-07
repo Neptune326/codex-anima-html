@@ -34,6 +34,7 @@ const ALLOWED_HOSTS = new Set([
   'lolibooru.moe',
   'danbooru.donmai.us',
   'capi-v2.sankakucomplex.com',
+  'sankakuapi.com',
   'safebooru.org',
   'www.safebooru.org',
   'api.rule34.xxx',
@@ -305,6 +306,15 @@ function upstreamHeaders(target) {
     return {
       Accept: 'application/vnd.sankaku.api+json;v=2',
       Referer: 'https://chan.sankakucomplex.com/',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/138.0.0.0 Safari/537.36'
+    };
+  }
+
+  if (hostname === 'sankakuapi.com') {
+    return {
+      Accept: 'application/json,text/plain,*/*',
+      Origin: 'https://www.sankakucomplex.com',
+      Referer: 'https://www.sankakucomplex.com/',
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/138.0.0.0 Safari/537.36'
     };
   }
