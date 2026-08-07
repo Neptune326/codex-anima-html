@@ -428,7 +428,7 @@ export const SOURCES = {
     shortName: 'Sankaku',
     home: 'https://chan.sankakucomplex.com/',
     description: 'Sankaku Complex 媒体频道',
-    capabilities: { image: true, date: true, dateMediaTypes: ['image'], video: true },
+    capabilities: { image: true, date: true, video: true },
     buildUrl(query) {
       const video = query.mediaType === 'video';
       const url = new URL(video
@@ -442,7 +442,7 @@ export const SOURCES = {
           'order:popular',
           video ? 'video' : '-video',
           video ? '' : ratingTag(query),
-          video ? '' : dateTag(query)
+          dateTag(query)
         ])
       });
     },

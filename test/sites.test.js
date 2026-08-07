@@ -34,7 +34,6 @@ test('remaining site adapters build allowlisted URLs with period and rating filt
   }
 
   assert.equal(SOURCES.wallhaven.capabilities.date, false);
-  assert.deepEqual(SOURCES.sankaku.capabilities.dateMediaTypes, ['image']);
   assert.equal(new URL(SOURCES.sankaku.buildUrl(query)).hostname, 'capi-v2.sankakucomplex.com');
   assert.equal(new URL(SOURCES.sankaku.buildUrl(query)).pathname, '/posts');
   assert.match(SOURCES.sankaku.buildUrl(query).searchParams.get('tags'), /rating:safe/);
@@ -83,7 +82,10 @@ test('image and video adapters normalize retained source payloads', async () => 
   assert.match(SOURCES.sankaku.buildUrl(videoQuery).searchParams.get('tags'), /video/);
   assert.equal(new URL(SOURCES.sankaku.buildUrl(videoQuery)).hostname, 'sankakuapi.com');
   assert.equal(SOURCES.sankaku.buildUrl(videoQuery).searchParams.get('lang'), 'en');
-  assert.doesNotMatch(SOURCES.sankaku.buildUrl(videoQuery).searchParams.get('tags'), /date:/);
+  assert.match(
+    SOURCES.sankaku.buildUrl(videoQuery).searchParams.get('tags'),
+    /date:2026-07-20\.\.2026-07-26/
+  );
   assert.doesNotMatch(SOURCES.sankaku.buildUrl(videoQuery).searchParams.get('tags'), /rating:/);
 
   const [rule34Post] = SOURCES.rule34.parse({

@@ -4,7 +4,7 @@ import {
   createQuery,
   getSource,
   ratingName
-} from './sites.js?v=2.11.1';
+} from './sites.js?v=2.11.2';
 import {
   clampPreviewPan,
   downloadFilename,
@@ -23,7 +23,7 @@ import {
   sourceSupportsMedia,
   suggestTags,
   translateTag
-} from './library.js?v=2.11.1';
+} from './library.js?v=2.11.2';
 import {
   exportLibrary,
   hydrateLibrary,
@@ -32,7 +32,7 @@ import {
   resetState,
   saveLibrary,
   saveState
-} from './storage.js?v=2.11.1';
+} from './storage.js?v=2.11.2';
 
 const elements = {
   sourceList: document.querySelector('#sourceList'),
@@ -576,9 +576,7 @@ function renderControls() {
   });
 
   const source = currentSource();
-  const supportsDate = source.capabilities.date
-    && (!source.capabilities.dateMediaTypes
-      || source.capabilities.dateMediaTypes.includes(state.mediaType));
+  const supportsDate = source.capabilities.date;
   const supportsVideo = source.capabilities.video;
   elements.controlSurface.hidden = state.view !== 'popular';
   elements.mobileFilterButton.hidden = state.view !== 'popular';

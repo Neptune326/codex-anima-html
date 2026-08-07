@@ -157,7 +157,7 @@ test('server serves health and static resources without hanging sockets', async 
     assert.equal(health.status, 200);
     assert.deepEqual(JSON.parse(health.body), {
       ok: true,
-      version: '2.11.1',
+      version: '2.11.2',
       proxyMode: app.proxyMode
     });
 
@@ -183,7 +183,7 @@ test('server serves health and static resources without hanging sockets', async 
     assert.match(page.body, /class="friend-links"/);
     assert.match(page.body, /data-view="links"/);
     assert.match(page.body, /id="friendLinks"[^>]*hidden/);
-    assert.match(page.body, /styles\.css\?v=2\.11\.1/);
+    assert.match(page.body, /styles\.css\?v=2\.11\.2/);
     assert.match(page.body, /data-view="playlist"/);
     assert.doesNotMatch(page.body, /id="aggregateSearchButton"/);
     assert.doesNotMatch(page.body, /href="https:\/\/(?:realbooru|gelbooru)\.com\/"/);
@@ -210,7 +210,6 @@ test('server serves health and static resources without hanging sockets', async 
     assert.match(appScript.body, /friendLinks\.hidden = !linksView/);
     assert.doesNotMatch(appScript.body, /state\.aggregateSearch/);
     assert.match(appScript.body, /previewSwipeStep/);
-    assert.match(appScript.body, /dateMediaTypes\.includes\(state\.mediaType\)/);
     assert.match(appScript.body, /renderGallery\(\{ append: !reset \}\)/);
     assert.match(appScript.body, /toggleWatchLater/);
     assert.match(appScript.headers['cache-control'], /no-store/);

@@ -1,6 +1,6 @@
 {
   "name": "atlas-gallery",
-  "version": "2.11.1",
+  "version": "2.11.2",
   "private": true,
   "description": "Multi-source media gallery with a Material 3 interface and same-origin proxy",
   "scripts": {
