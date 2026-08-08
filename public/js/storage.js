@@ -1,7 +1,7 @@
 import {
   normalizeDownloadConcurrency,
   normalizeDownloadNameTemplate
-} from './library.js?v=2.15.0';
+} from './library.js?v=2.16.0';
 
 const STORAGE_KEY = 'atlas-gallery-v2';
 const LEGACY_STORAGE_KEY = 'atlas-gallery';
@@ -29,7 +29,7 @@ export const DEFAULT_STATE = {
     videoMuted: false,
     videoLoop: false,
     videoPlaybackRate: 1,
-    videoQuality: 'original',
+    videoPlaybackRateEnabled: true,
     showPreviewGallery: false,
     showPreviewFavorite: true,
     blurSensitive: false,
@@ -81,9 +81,7 @@ function normalizeSettings(settings = {}) {
     videoPlaybackRate: [0.5, 0.75, 1, 1.25, 1.5, 2].includes(Number(settingsWithoutMotion.videoPlaybackRate))
       ? Number(settingsWithoutMotion.videoPlaybackRate)
       : DEFAULT_STATE.settings.videoPlaybackRate,
-    videoQuality: ['original', 'sample', 'preview'].includes(settingsWithoutMotion.videoQuality)
-      ? settingsWithoutMotion.videoQuality
-      : DEFAULT_STATE.settings.videoQuality,
+    videoPlaybackRateEnabled: settingsWithoutMotion.videoPlaybackRateEnabled ?? true,
     compactGrid: settingsWithoutMotion.compactGrid ?? settingsWithoutMotion.compact ?? false,
     blockedTags: String(settingsWithoutMotion.blockedTags || '').trim(),
     downloadConcurrency: normalizeDownloadConcurrency(settingsWithoutMotion.downloadConcurrency),

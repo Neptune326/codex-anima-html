@@ -33,12 +33,8 @@ test('smart collections require every tag and respect media type', async () => {
   }), false);
 });
 
-test('favorite search and video source selection stay deterministic', async () => {
-  const {
-    matchesFavoriteSearch,
-    selectVideoSource,
-    videoSourceOptions
-  } = await import('../public/js/library.js');
+test('favorite search stays deterministic', async () => {
+  const { matchesFavoriteSearch } = await import('../public/js/library.js');
   const post = {
     source: 'danbooru',
     id: '42',
@@ -54,9 +50,6 @@ test('favorite search and video source selection stay deterministic', async () =
 
   assert.equal(matchesFavoriteSearch(post, 'blue_hair 待整理'), true);
   assert.equal(matchesFavoriteSearch(post, 'wallpaper'), false);
-  assert.deepEqual(videoSourceOptions(post).map(option => option.value), ['original', 'sample']);
-  assert.equal(selectVideoSource(post, 'sample').url, post.sample);
-  assert.equal(selectVideoSource(post, 'preview').value, 'original');
 });
 
 test('download filenames use normalized source, id and extension', async () => {
@@ -170,7 +163,7 @@ test('fallback library is authoritative until it is migrated to IndexedDB', asyn
   assert.equal(DEFAULT_STATE.settings.videoMuted, false);
   assert.equal(DEFAULT_STATE.settings.videoLoop, false);
   assert.equal(DEFAULT_STATE.settings.videoPlaybackRate, 1);
-  assert.equal(DEFAULT_STATE.settings.videoQuality, 'original');
+  assert.equal(DEFAULT_STATE.settings.videoPlaybackRateEnabled, true);
   assert.equal(DEFAULT_STATE.settings.showPreviewGallery, false);
   assert.equal(DEFAULT_STATE.settings.showPreviewFavorite, true);
   assert.equal(DEFAULT_STATE.settings.blurSensitive, false);

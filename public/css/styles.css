@@ -2079,40 +2079,18 @@ dialog::backdrop {
   backdrop-filter: blur(8px);
 }
 
-.preview-video-controls {
-  position: absolute;
-  z-index: 4;
-  top: 18px;
-  left: 50%;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px;
-  border-radius: 24px;
-  background: rgba(32, 33, 36, 0.76);
-  color: #ffffff;
-  transform: translateX(-50%);
-  backdrop-filter: blur(8px);
-}
-
-.preview-video-controls select {
+.preview-rate-control {
   height: 36px;
   padding: 0 10px;
-  border: 0;
+  border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 18px;
   outline: 0;
   background: rgba(255, 255, 255, 0.12);
   color: #ffffff;
 }
 
-.preview-video-controls option {
+.preview-rate-control option {
   color: #202124;
-}
-
-.preview-video-controls .icon-button {
-  width: 36px;
-  height: 36px;
-  color: #ffffff;
 }
 
 .state-actions {
@@ -2170,6 +2148,7 @@ dialog::backdrop {
   top: 18px;
   left: 18px;
   display: flex;
+  align-items: center;
   gap: 6px;
 }
 
@@ -2991,6 +2970,7 @@ dialog::backdrop {
 @media (max-width: 640px) {
   :root {
     --mobile-nav-height: 68px;
+    --mobile-top-bar-height: 56px;
     --card-min: 0px;
   }
 
@@ -2999,7 +2979,9 @@ dialog::backdrop {
   }
 
   .top-app-bar {
-    min-height: 56px;
+    height: var(--mobile-top-bar-height);
+    min-height: var(--mobile-top-bar-height);
+    max-height: var(--mobile-top-bar-height);
     gap: 10px;
     padding: 6px 12px;
   }
@@ -3356,7 +3338,7 @@ dialog::backdrop {
 
   .main-content {
     min-height: calc(100dvh - 56px);
-    padding: 16px 12px calc(var(--mobile-nav-height) + 24px + env(safe-area-inset-bottom));
+    padding: 0 12px calc(var(--mobile-nav-height) + 24px + env(safe-area-inset-bottom));
   }
 
   .friend-links {
@@ -3386,7 +3368,8 @@ dialog::backdrop {
   .section-header {
     position: sticky;
     z-index: 18;
-    top: 56px;
+    top: var(--mobile-top-bar-height);
+    min-height: 70px;
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
@@ -3702,14 +3685,9 @@ dialog::backdrop {
     left: 10px;
   }
 
-  .preview-video-controls {
-    top: 60px;
-    max-width: calc(100% - 24px);
-  }
-
-  .preview-video-controls select {
-    min-width: 0;
-    max-width: 120px;
+  .preview-rate-control {
+    max-width: 92px;
+    padding: 0 6px;
   }
 
   .preview-tools .icon-button {

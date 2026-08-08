@@ -4,7 +4,7 @@ import {
   createQuery,
   getSource,
   ratingName
-} from './sites.js?v=2.15.0';
+} from './sites.js?v=2.16.0';
 import {
   clampPreviewPan,
   downloadFilename,
@@ -20,13 +20,11 @@ import {
   replaceCurrentTag,
   retryDelay,
   shouldRetryRequest,
-  selectVideoSource,
   compatibleSourceId,
   sourceSupportsMedia,
   suggestTags,
-  translateTag,
-  videoSourceOptions
-} from './library.js?v=2.15.0';
+  translateTag
+} from './library.js?v=2.16.0';
 import {
   exportLibrary,
   hydrateLibrary,
@@ -35,7 +33,7 @@ import {
   resetState,
   saveLibrary,
   saveState
-} from './storage.js?v=2.15.0';
+} from './storage.js?v=2.16.0';
 
 const elements = {
   sourceList: document.querySelector('#sourceList'),
@@ -121,10 +119,7 @@ const elements = {
   previewMedia: document.querySelector('#previewMedia'),
   previewDetails: document.querySelector('#previewDetails'),
   previewZoom: document.querySelector('#previewZoom'),
-  previewVideoControls: document.querySelector('#previewVideoControls'),
   previewPlaybackRate: document.querySelector('#previewPlaybackRate'),
-  previewQualitySelect: document.querySelector('#previewQualitySelect'),
-  previewPipButton: document.querySelector('#previewPipButton'),
   previewFilmstrip: document.querySelector('#previewFilmstrip'),
   previewHelpButton: document.querySelector('#previewHelpButton'),
   previewQuickFavorite: document.querySelector('#previewQuickFavorite'),
@@ -1719,22 +1714,12 @@ async function saveFavoriteMetadata(post) {
   showToast('收藏备注已保存');
 }
 
-function renderPreviewVideoControls(post) {
-  const isVideo = post?.type === 'video';
-  elements.previewVideoControls.hidden = !isVideo;
-  elements.previewPipButton.disabled = !isVideo || !document.pictureInPictureEnabled;
-  if (!isVideo) {
-    elements.previewQualitySelect.innerHTML = '';
-    return;
+function renderPreviewPlaybackRate(post) {
+  const enabled = post?.type === 'video' && state.settings.videoPlaybackRateEnabled;
+  elements.previewPlaybackRate.hidden = !enabled;
+  if (enabled) {
+    elements.previewPlaybackRate.value = String(state.settings.videoPlaybackRate);
   }
-
-  const options = videoSourceOptions(post);
-  elements.previewQualitySelect.innerHTML = options.map(option => `
-    <option value="${option.value}">${option.label}</option>
-  `).join('');
-  const selected = selectVideoSource(post, state.settings.videoQuality);
-  elements.previewQualitySelect.value = selected.value;
-  elements.previewPlaybackRate.value = String(state.settings.videoPlaybackRate);
 }
 
 function renderPreview() {
@@ -1745,10 +1730,7 @@ function renderPreview() {
     return;
   }
 
-  const selectedVideoSource = post.type === 'video'
-    ? selectVideoSource(post, state.settings.videoQuality)
-    : null;
-  const mediaUrl = post.type === 'video' ? selectedVideoSource.url : post.sample || post.file;
+  const mediaUrl = post.type === 'video' ? post.file : post.sample || post.file;
   const previewUrl = post.preview || post.sample || post.file;
   const poster = /\.(?:mp4|webm)(?:[?#]|$)/i.test(previewUrl)
     ? ''
@@ -1766,7 +1748,7 @@ function renderPreview() {
   lastPreviewTap = null;
   elements.previewDialog.classList.toggle('hide-details', state.settings.hideDetails);
   elements.previewDialog.classList.toggle('preview-video', post.type === 'video');
-  renderPreviewVideoControls(post);
+  renderPreviewPlaybackRate(post);
   elements.previewQuickFavorite.hidden = !(state.settings.showPreviewFavorite && state.settings.hideDetails);
   elements.previewZoom.hidden = post.type === 'video';
   elements.previewFilmstrip.hidden = !state.settings.showPreviewGallery;
@@ -1876,7 +1858,9 @@ function renderPreview() {
     });
   }, { once: true });
   if (video) {
-    video.playbackRate = Number(state.settings.videoPlaybackRate) || 1;
+    video.playbackRate = state.settings.videoPlaybackRateEnabled
+      ? Number(state.settings.videoPlaybackRate) || 1
+      : 1;
     const savedTime = Number(state.videoProgress[favoriteKey(post)]) || 0;
     video.addEventListener('loadedmetadata', () => {
       video.classList.remove('is-landscape', 'is-portrait', 'is-square');
@@ -2739,32 +2723,6 @@ function registerEvents() {
       video.playbackRate = rate;
     }
     persist();
-  });
-  elements.previewQualitySelect.addEventListener('change', () => {
-    const post = visiblePosts()[selectedIndex];
-    if (!post || post.type !== 'video') {
-      return;
-    }
-    saveVideoProgress(post, elements.previewMedia.querySelector('video'), true);
-    state.settings.videoQuality = elements.previewQualitySelect.value;
-    persist();
-    renderPreview();
-  });
-  elements.previewPipButton.addEventListener('click', async () => {
-    const video = elements.previewMedia.querySelector('video');
-    if (!video || !document.pictureInPictureEnabled) {
-      showToast('当前浏览器不支持画中画');
-      return;
-    }
-    try {
-      if (document.pictureInPictureElement) {
-        await document.exitPictureInPicture();
-      } else {
-        await video.requestPictureInPicture();
-      }
-    } catch {
-      showToast('当前视频无法进入画中画');
-    }
   });
   elements.closeDiagnostic.addEventListener('click', () => elements.diagnosticDialog.close());
   elements.zoomInButton.addEventListener('click', () => setPreviewZoom(previewZoom + 0.25));
