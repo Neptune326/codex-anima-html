@@ -157,7 +157,7 @@ test('server serves health and static resources without hanging sockets', async 
     assert.equal(health.status, 200);
     assert.deepEqual(JSON.parse(health.body), {
       ok: true,
-      version: '2.17.0',
+      version: '2.18.0',
       proxyMode: app.proxyMode
     });
 
@@ -184,6 +184,7 @@ test('server serves health and static resources without hanging sockets', async 
     assert.match(page.body, /data-setting="showPreviewFavorite"/);
     assert.match(page.body, /id="favoriteBatchActions"/);
     assert.match(page.body, /id="previewPlaybackRate"/);
+    assert.match(page.body, /id="previewFullscreenButton"[\s\S]*id="previewRateField"/);
     assert.doesNotMatch(page.body, /id="previewVideoControls"/);
     assert.doesNotMatch(page.body, /id="previewPipButton"/);
     assert.doesNotMatch(page.body, /id="previewQualitySelect"/);
@@ -194,7 +195,7 @@ test('server serves health and static resources without hanging sockets', async 
     assert.match(page.body, /class="friend-links"/);
     assert.match(page.body, /data-view="links"/);
     assert.match(page.body, /id="friendLinks"[^>]*hidden/);
-    assert.match(page.body, /styles\.css\?v=2\.17\.0/);
+    assert.match(page.body, /styles\.css\?v=2\.18\.0/);
     assert.match(page.body, /data-rating="questionable"[^>]*class="filter-chip is-selected"|class="filter-chip is-selected"[^>]*data-rating="questionable"/);
     assert.match(page.body, /data-rating="explicit"[^>]*class="filter-chip is-selected"|class="filter-chip is-selected"[^>]*data-rating="explicit"/);
     assert.match(page.body, /data-view="playlist"/);
@@ -256,6 +257,8 @@ test('server serves health and static resources without hanging sockets', async 
     assert.match(styles.body, /\.section-header\s*\{[^}]*position:\s*sticky;/s);
     assert.match(styles.body, /\.date-stepper #anchorDate\s*\{[^}]*width:\s*0;/s);
     assert.match(styles.body, /\.preview-rate-control\s*\{/);
+    assert.match(styles.body, /\.preview-rate-field\s*\{[^}]*height:\s*42px;[^}]*border-radius:\s*21px;/s);
+    assert.match(styles.body, /\.preview-rate-field:focus-within\s*\{/);
     assert.doesNotMatch(styles.body, /\.preview-video-controls\s*\{/);
     assert.match(styles.body, /--mobile-top-bar-height:\s*56px/);
     assert.match(styles.body, /\.main-content\s*\{[^}]*padding:\s*0 12px/s);

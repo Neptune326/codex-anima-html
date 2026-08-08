@@ -4,7 +4,7 @@ import {
   createQuery,
   getSource,
   ratingName
-} from './sites.js?v=2.17.0';
+} from './sites.js?v=2.18.0';
 import {
   clampPreviewPan,
   downloadFilename,
@@ -25,7 +25,7 @@ import {
   sourceSupportsMedia,
   suggestTags,
   translateTag
-} from './library.js?v=2.17.0';
+} from './library.js?v=2.18.0';
 import {
   exportLibrary,
   hydrateLibrary,
@@ -34,7 +34,7 @@ import {
   resetState,
   saveLibrary,
   saveState
-} from './storage.js?v=2.17.0';
+} from './storage.js?v=2.18.0';
 
 const elements = {
   sourceList: document.querySelector('#sourceList'),
@@ -120,6 +120,7 @@ const elements = {
   previewMedia: document.querySelector('#previewMedia'),
   previewDetails: document.querySelector('#previewDetails'),
   previewZoom: document.querySelector('#previewZoom'),
+  previewRateField: document.querySelector('#previewRateField'),
   previewPlaybackRate: document.querySelector('#previewPlaybackRate'),
   previewFilmstrip: document.querySelector('#previewFilmstrip'),
   previewHelpButton: document.querySelector('#previewHelpButton'),
@@ -1719,7 +1720,7 @@ async function saveFavoriteMetadata(post) {
 
 function renderPreviewPlaybackRate(post) {
   const enabled = post?.type === 'video' && state.settings.videoPlaybackRateEnabled;
-  elements.previewPlaybackRate.hidden = !enabled;
+  elements.previewRateField.hidden = !enabled;
   if (enabled) {
     elements.previewPlaybackRate.value = String(state.settings.videoPlaybackRate);
   }

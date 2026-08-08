@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="light dark">
   <meta name="description" content="多站点图片与视频图库浏览器">
   <title>Atlas Gallery</title>
-  <link rel="stylesheet" href="/css/styles.css?v=2.17.0">
+  <link rel="stylesheet" href="/css/styles.css?v=2.18.0">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true">
@@ -689,20 +689,23 @@
         <button class="icon-button" id="previewHelpButton" type="button" title="快捷键帮助">
           <svg class="icon"><use href="#icon-help"></use></svg>
         </button>
-        <select class="preview-rate-control" id="previewPlaybackRate" aria-label="视频播放倍速" hidden>
-          <option value="0.5">0.5×</option>
-          <option value="0.75">0.75×</option>
-          <option value="1">1×</option>
-          <option value="1.25">1.25×</option>
-          <option value="1.5">1.5×</option>
-          <option value="2">2×</option>
-        </select>
         <button class="icon-button preview-quick-favorite" id="previewQuickFavorite" type="button" title="收藏" aria-label="收藏" hidden>
           <svg class="icon"><use href="#icon-favorite"></use></svg>
         </button>
         <button class="icon-button" id="previewFullscreenButton" type="button" title="切换全屏">
           <svg class="icon"><use href="#icon-fullscreen"></use></svg>
         </button>
+        <label class="preview-rate-field" id="previewRateField" hidden>
+          <span>倍速</span>
+          <select class="preview-rate-control" id="previewPlaybackRate" aria-label="视频播放倍速">
+            <option value="0.5">0.5×</option>
+            <option value="0.75">0.75×</option>
+            <option value="1">1×</option>
+            <option value="1.25">1.25×</option>
+            <option value="1.5">1.5×</option>
+            <option value="2">2×</option>
+          </select>
+        </label>
       </div>
       <div class="shortcut-help" id="shortcutHelp" hidden>
         <strong>预览快捷键</strong>
@@ -754,6 +757,6 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script type="module" src="/js/app.js?v=2.17.0"></script>
+  <script type="module" src="/js/app.js?v=2.18.0"></script>
 </body>
 </html>
