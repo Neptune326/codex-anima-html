@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="light dark">
   <meta name="description" content="多站点图片与视频图库浏览器">
   <title>Atlas Gallery</title>
-  <link rel="stylesheet" href="/css/styles.css?v=2.12.0">
+  <link rel="stylesheet" href="/css/styles.css?v=2.13.0">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true">
@@ -517,10 +517,6 @@
           <input type="checkbox" data-setting="showPreviewFavorite">
         </label>
         <label class="setting-row">
-          <span><strong>显示预览稍后观看按钮</strong><small>在查看页显示稍后观看操作</small></span>
-          <input type="checkbox" data-setting="showPreviewWatchLater">
-        </label>
-        <label class="setting-row">
           <span><strong>模糊敏感缩略图</strong><small>预览前保护敏感内容</small></span>
           <input type="checkbox" data-setting="blurSensitive">
         </label>
@@ -683,6 +679,9 @@
         <button class="icon-button" id="previewHelpButton" type="button" title="快捷键帮助">
           <svg class="icon"><use href="#icon-help"></use></svg>
         </button>
+        <button class="icon-button preview-quick-favorite" id="previewQuickFavorite" type="button" title="收藏" aria-label="收藏" hidden>
+          <svg class="icon"><use href="#icon-favorite"></use></svg>
+        </button>
         <button class="icon-button" id="previewFullscreenButton" type="button" title="切换全屏">
           <svg class="icon"><use href="#icon-fullscreen"></use></svg>
         </button>
@@ -724,6 +723,6 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script type="module" src="/js/app.js?v=2.12.0"></script>
+  <script type="module" src="/js/app.js?v=2.13.0"></script>
 </body>
 </html>

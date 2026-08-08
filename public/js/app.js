@@ -4,7 +4,7 @@ import {
   createQuery,
   getSource,
   ratingName
-} from './sites.js?v=2.12.0';
+} from './sites.js?v=2.13.0';
 import {
   clampPreviewPan,
   downloadFilename,
@@ -23,7 +23,7 @@ import {
   sourceSupportsMedia,
   suggestTags,
   translateTag
-} from './library.js?v=2.12.0';
+} from './library.js?v=2.13.0';
 import {
   exportLibrary,
   hydrateLibrary,
@@ -32,7 +32,7 @@ import {
   resetState,
   saveLibrary,
   saveState
-} from './storage.js?v=2.12.0';
+} from './storage.js?v=2.13.0';
 
 const elements = {
   sourceList: document.querySelector('#sourceList'),
@@ -115,6 +115,7 @@ const elements = {
   previewZoom: document.querySelector('#previewZoom'),
   previewFilmstrip: document.querySelector('#previewFilmstrip'),
   previewHelpButton: document.querySelector('#previewHelpButton'),
+  previewQuickFavorite: document.querySelector('#previewQuickFavorite'),
   previewFullscreenButton: document.querySelector('#previewFullscreenButton'),
   shortcutHelp: document.querySelector('#shortcutHelp'),
   zoomOutButton: document.querySelector('#zoomOutButton'),
@@ -1457,6 +1458,8 @@ function renderPreview() {
   previewGesture = null;
   lastPreviewTap = null;
   elements.previewDialog.classList.toggle('hide-details', state.settings.hideDetails);
+  elements.previewDialog.classList.toggle('preview-video', post.type === 'video');
+  elements.previewQuickFavorite.hidden = !(state.settings.showPreviewFavorite && state.settings.hideDetails);
   elements.previewZoom.hidden = post.type === 'video';
   elements.previewFilmstrip.hidden = !state.settings.showPreviewGallery;
   elements.previewMedia.innerHTML = post.type === 'video'
@@ -1483,8 +1486,10 @@ function renderPreview() {
   const source = getSource(post.source);
   const favorite = state.favorites[favoriteKey(post)];
   const isFavorite = Boolean(favorite);
-  const isWatchLater = Boolean(state.watchLater[favoriteKey(post)]);
   const tags = Array.isArray(post.tags) ? post.tags.slice(0, 100) : [];
+  elements.previewQuickFavorite.classList.toggle('is-active', isFavorite);
+  elements.previewQuickFavorite.title = isFavorite ? '取消收藏' : '收藏';
+  elements.previewQuickFavorite.setAttribute('aria-label', elements.previewQuickFavorite.title);
 
   elements.previewDetails.innerHTML = `
     <span class="preview-eyebrow">${escapeHtml(source.name)}</span>
@@ -1520,11 +1525,6 @@ function renderPreview() {
           ${icon('favorite')}${isFavorite ? '取消收藏' : '收藏'}
         </button>
       ` : ''}
-      ${state.settings.showPreviewWatchLater ? `
-        <button class="outlined-button" id="previewWatchLater" type="button">
-          ${icon('bookmark')}${isWatchLater ? '移出稍后看' : '加入稍后看'}
-        </button>
-      ` : ''}
       <button class="outlined-button" id="copyTags" type="button">
         ${icon('copy')}复制标签
       </button>
@@ -1543,7 +1543,6 @@ function renderPreview() {
   elements.previousPreview.disabled = selectedIndex <= 0;
   elements.nextPreview.disabled = selectedIndex >= rows.length - 1;
   document.querySelector('#previewFavorite')?.addEventListener('click', () => toggleFavorite(post));
-  document.querySelector('#previewWatchLater')?.addEventListener('click', () => toggleWatchLater(post));
   document.querySelector('#copyTags').addEventListener('click', () => copyTags(post));
   document.querySelector('#copyOriginalLink').addEventListener('click', () => copyOriginalLink(post));
   document.querySelector('#previewDownload').addEventListener('click', () => {
@@ -2334,6 +2333,12 @@ function registerEvents() {
   elements.nextPreview.addEventListener('click', () => movePreview(1));
   elements.previewHelpButton.addEventListener('click', () => {
     elements.shortcutHelp.hidden = !elements.shortcutHelp.hidden;
+  });
+  elements.previewQuickFavorite.addEventListener('click', () => {
+    const post = visiblePosts()[selectedIndex];
+    if (post) {
+      toggleFavorite(post);
+    }
   });
   elements.previewFullscreenButton.addEventListener('click', togglePreviewFullscreen);
   elements.zoomInButton.addEventListener('click', () => setPreviewZoom(previewZoom + 0.25));

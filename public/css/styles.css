@@ -2020,6 +2020,10 @@ dialog::backdrop {
   backdrop-filter: blur(8px);
 }
 
+.preview-quick-favorite.is-active {
+  color: var(--primary-container);
+}
+
 .shortcut-help {
   position: absolute;
   z-index: 5;
@@ -2429,6 +2433,10 @@ dialog::backdrop {
 }
 
 @media (max-width: 640px) {
+  .preview-dialog.preview-video #previewHelpButton {
+    display: none;
+  }
+
   .section-actions {
     width: 100%;
     justify-content: space-between;

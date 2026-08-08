@@ -1,7 +1,7 @@
 import {
   normalizeDownloadConcurrency,
   normalizeDownloadNameTemplate
-} from './library.js?v=2.12.0';
+} from './library.js?v=2.13.0';
 
 const STORAGE_KEY = 'atlas-gallery-v2';
 const LEGACY_STORAGE_KEY = 'atlas-gallery';
@@ -23,15 +23,14 @@ export const DEFAULT_STATE = {
   settings: {
     theme: 'light',
     accent: 'blue',
-    hideDetails: false,
+    hideDetails: true,
     autoplay: true,
     videoAutoNext: true,
-    videoMuted: true,
+    videoMuted: false,
     videoLoop: false,
     showPreviewGallery: false,
     showPreviewFavorite: true,
-    showPreviewWatchLater: true,
-    blurSensitive: true,
+    blurSensitive: false,
     compactGrid: false,
     galleryLayout: 'grid',
     blockedTags: '',
@@ -55,7 +54,11 @@ function clone(value) {
 }
 
 function normalizeSettings(settings = {}) {
-  const { reduceMotion: _legacyReduceMotion, ...settingsWithoutMotion } = settings;
+  const {
+    reduceMotion: _legacyReduceMotion,
+    showPreviewWatchLater: _legacyShowPreviewWatchLater,
+    ...settingsWithoutMotion
+  } = settings;
   const legacyTheme = settings.light === undefined
     ? undefined
     : settings.light ? 'light' : 'dark';
