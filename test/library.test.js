@@ -33,6 +33,32 @@ test('smart collections require every tag and respect media type', async () => {
   }), false);
 });
 
+test('favorite search and video source selection stay deterministic', async () => {
+  const {
+    matchesFavoriteSearch,
+    selectVideoSource,
+    videoSourceOptions
+  } = await import('../public/js/library.js');
+  const post = {
+    source: 'danbooru',
+    id: '42',
+    type: 'video',
+    file: 'https://cdn.example.test/original.mp4',
+    sample: 'https://cdn.example.test/sample.webm',
+    preview: 'https://cdn.example.test/poster.jpg',
+    tags: ['night', 'blue_hair'],
+    favoriteFolder: '视频',
+    favoriteLabels: ['待整理'],
+    favoriteNote: '测试收藏'
+  };
+
+  assert.equal(matchesFavoriteSearch(post, 'blue_hair 待整理'), true);
+  assert.equal(matchesFavoriteSearch(post, 'wallpaper'), false);
+  assert.deepEqual(videoSourceOptions(post).map(option => option.value), ['original', 'sample']);
+  assert.equal(selectVideoSource(post, 'sample').url, post.sample);
+  assert.equal(selectVideoSource(post, 'preview').value, 'original');
+});
+
 test('download filenames use normalized source, id and extension', async () => {
   const { downloadFilename } = await import('../public/js/library.js');
 
@@ -143,12 +169,15 @@ test('fallback library is authoritative until it is migrated to IndexedDB', asyn
   assert.equal(DEFAULT_STATE.settings.videoAutoNext, true);
   assert.equal(DEFAULT_STATE.settings.videoMuted, false);
   assert.equal(DEFAULT_STATE.settings.videoLoop, false);
+  assert.equal(DEFAULT_STATE.settings.videoPlaybackRate, 1);
+  assert.equal(DEFAULT_STATE.settings.videoQuality, 'original');
   assert.equal(DEFAULT_STATE.settings.showPreviewGallery, false);
   assert.equal(DEFAULT_STATE.settings.showPreviewFavorite, true);
   assert.equal(DEFAULT_STATE.settings.blurSensitive, false);
   assert.equal(DEFAULT_STATE.settings.compactGrid, false);
   assert.equal(Object.hasOwn(DEFAULT_STATE.settings, 'showPreviewWatchLater'), false);
   assert.equal(Object.hasOwn(DEFAULT_STATE.settings, 'reduceMotion'), false);
+  assert.deepEqual(DEFAULT_STATE.favoriteFolders, []);
   const databaseLibrary = {
     favorites: { old: { id: 'old' } },
     history: { old: { id: 'old' } }
@@ -166,6 +195,29 @@ test('fallback library is authoritative until it is migrated to IndexedDB', asyn
     resolveLibrarySnapshot({ favorites: {}, history: {} }, null, databaseLibrary),
     databaseLibrary
   );
+});
+
+test('library export and import preserve favorite folders', async () => {
+  const { exportLibrary, importLibrary } = await import('../public/js/storage.js');
+  const state = {
+    favorites: {
+      'danbooru:1': { source: 'danbooru', id: '1', favoriteFolder: '待整理' }
+    },
+    favoriteFolders: ['待整理'],
+    history: {},
+    savedSearches: [],
+    smartCollections: [],
+    watchLater: {}
+  };
+  const payload = JSON.parse(exportLibrary(state));
+  assert.equal(payload.version, 5);
+  const imported = importLibrary(JSON.stringify(payload), {
+    ...state,
+    favorites: {},
+    favoriteFolders: []
+  });
+  assert.equal(imported.favorites['danbooru:1'].favoriteFolder, '待整理');
+  assert.deepEqual(imported.favoriteFolders, ['待整理']);
 });
 
 test('request retry policy only retries transient failures', async () => {

@@ -168,6 +168,53 @@ export function matchesSmartCollection(post, collection) {
   return mediaMatches && requiredTags.every(tag => postTags.has(tag));
 }
 
+export function matchesFavoriteSearch(post, query) {
+  const normalizedQuery = String(query || '').trim().toLowerCase();
+  if (!normalizedQuery) {
+    return true;
+  }
+
+  const searchable = [
+    post?.source,
+    post?.id,
+    post?.favoriteFolder,
+    post?.favoriteNote,
+    ...(Array.isArray(post?.tags) ? post.tags : []),
+    ...(Array.isArray(post?.favoriteLabels) ? post.favoriteLabels : [])
+  ].map(value => String(value || '').toLowerCase()).join(' ');
+
+  return normalizedQuery.split(/\s+/).every(token => searchable.includes(token));
+}
+
+function isVideoUrl(value) {
+  return /\.(?:mp4|webm|m4v|mov)(?:[?#]|$)/i.test(String(value || ''));
+}
+
+export function videoSourceOptions(post) {
+  const candidates = [
+    { value: 'original', label: '原画', url: post?.file, allowAnyUrl: post?.type === 'video' },
+    { value: 'sample', label: '流畅', url: post?.sample },
+    { value: 'preview', label: '预览', url: post?.preview }
+  ];
+  const seen = new Set();
+
+  return candidates.filter(candidate => {
+    if (!candidate.url || (!candidate.allowAnyUrl && !isVideoUrl(candidate.url)) || seen.has(candidate.url)) {
+      return false;
+    }
+    seen.add(candidate.url);
+    return true;
+  });
+}
+
+export function selectVideoSource(post, preferred = 'original') {
+  const options = videoSourceOptions(post);
+  return options.find(option => option.value === preferred)
+    || options.find(option => option.value === 'original')
+    || options[0]
+    || { value: 'original', label: '原画', url: post?.file || '' };
+}
+
 export function matchesDimension(post, filter = 'all') {
   const width = Number(post?.width) || 0;
   const height = Number(post?.height) || 0;
@@ -211,6 +258,8 @@ export function galleryViewKey(value = {}) {
     Array.isArray(value.ratings) ? [...value.ratings].sort().join(',') : '',
     value.dimensionFilter || 'all',
     value.activeSmartCollection || '',
+    value.activeFavoriteFolder || '',
+    value.favoriteSearch || '',
     settings.galleryLayout || 'grid',
     settings.compactGrid ? 'compact' : 'comfortable',
     settings.blockedTags || ''

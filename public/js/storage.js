@@ -1,7 +1,7 @@
 import {
   normalizeDownloadConcurrency,
   normalizeDownloadNameTemplate
-} from './library.js?v=2.14.0';
+} from './library.js?v=2.15.0';
 
 const STORAGE_KEY = 'atlas-gallery-v2';
 const LEGACY_STORAGE_KEY = 'atlas-gallery';
@@ -28,6 +28,8 @@ export const DEFAULT_STATE = {
     videoAutoNext: true,
     videoMuted: false,
     videoLoop: false,
+    videoPlaybackRate: 1,
+    videoQuality: 'original',
     showPreviewGallery: false,
     showPreviewFavorite: true,
     blurSensitive: false,
@@ -45,6 +47,9 @@ export const DEFAULT_STATE = {
   savedSearches: [],
   smartCollections: [],
   activeSmartCollection: '',
+  favoriteFolders: [],
+  activeFavoriteFolder: '',
+  favoriteSearch: '',
   videoProgress: {},
   downloadQueue: []
 };
@@ -73,6 +78,12 @@ function normalizeSettings(settings = {}) {
     galleryLayout: ['grid', 'masonry'].includes(settingsWithoutMotion.galleryLayout)
       ? settingsWithoutMotion.galleryLayout
       : DEFAULT_STATE.settings.galleryLayout,
+    videoPlaybackRate: [0.5, 0.75, 1, 1.25, 1.5, 2].includes(Number(settingsWithoutMotion.videoPlaybackRate))
+      ? Number(settingsWithoutMotion.videoPlaybackRate)
+      : DEFAULT_STATE.settings.videoPlaybackRate,
+    videoQuality: ['original', 'sample', 'preview'].includes(settingsWithoutMotion.videoQuality)
+      ? settingsWithoutMotion.videoQuality
+      : DEFAULT_STATE.settings.videoQuality,
     compactGrid: settingsWithoutMotion.compactGrid ?? settingsWithoutMotion.compact ?? false,
     blockedTags: String(settingsWithoutMotion.blockedTags || '').trim(),
     downloadConcurrency: normalizeDownloadConcurrency(settingsWithoutMotion.downloadConcurrency),
@@ -101,6 +112,11 @@ function normalizeState(value = {}) {
       : Array.isArray(value.presets) ? value.presets : [],
     smartCollections: Array.isArray(value.smartCollections) ? value.smartCollections : [],
     activeSmartCollection: value.activeSmartCollection || '',
+    favoriteFolders: Array.isArray(value.favoriteFolders)
+      ? value.favoriteFolders.map(folder => String(folder).trim()).filter(Boolean).slice(0, 50)
+      : [],
+    activeFavoriteFolder: String(value.activeFavoriteFolder || ''),
+    favoriteSearch: String(value.favoriteSearch || '').trim().slice(0, 120),
     videoProgress: value.videoProgress && typeof value.videoProgress === 'object'
       ? value.videoProgress
       : {},
@@ -341,9 +357,10 @@ export async function resetState() {
 export function exportLibrary(state) {
   const payload = {
     format: 'atlas-gallery-library',
-    version: 4,
+    version: 5,
     exportedAt: new Date().toISOString(),
     favorites: state.favorites,
+    favoriteFolders: state.favoriteFolders || [],
     history: state.history,
     savedSearches: state.savedSearches,
     smartCollections: state.smartCollections,
@@ -364,7 +381,7 @@ export function importLibrary(text, state) {
 
   if (
     payload?.format !== 'atlas-gallery-library'
-    || ![2, 3, 4].includes(payload?.version)
+    || ![2, 3, 4, 5].includes(payload?.version)
   ) {
     throw new Error('文件格式或版本不受支持');
   }
@@ -375,6 +392,12 @@ export function importLibrary(text, state) {
       ...state.favorites,
       ...(payload.favorites || {})
     },
+    favoriteFolders: [
+      ...new Set([
+        ...(state.favoriteFolders || []),
+        ...(Array.isArray(payload.favoriteFolders) ? payload.favoriteFolders : [])
+      ].map(folder => String(folder).trim()).filter(Boolean))
+    ].slice(0, 50),
     history: {
       ...state.history,
       ...(payload.history || {})

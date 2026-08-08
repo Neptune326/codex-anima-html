@@ -942,6 +942,34 @@ button:active:not(:disabled) {
   flex-wrap: wrap;
 }
 
+.favorite-collection-tools {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.favorite-search-field {
+  min-width: min(100%, 240px);
+  flex: 1 1 220px;
+}
+
+.favorite-search-field input,
+.favorite-batch-actions input,
+.favorite-batch-actions select {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--outline-variant);
+  border-radius: 10px;
+  outline: 0;
+  background: var(--surface);
+  color: var(--on-surface);
+}
+
 .collection-tools strong {
   margin-right: 4px;
 }
@@ -956,6 +984,22 @@ button:active:not(:disabled) {
 .batch-toolbar > span {
   margin-right: auto;
   font-weight: 650;
+}
+
+.favorite-batch-actions {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.favorite-batch-actions select {
+  width: 150px;
+}
+
+.favorite-batch-actions input {
+  width: 190px;
 }
 
 .gallery-grid {
@@ -1052,6 +1096,20 @@ button:active:not(:disabled) {
   color: var(--error);
 }
 
+.media-diagnostic-button {
+  position: absolute;
+  z-index: 4;
+  right: 10px;
+  bottom: 58px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 16px;
+  background: rgba(32, 33, 36, 0.84);
+  color: #ffffff;
+  font-size: 12px;
+}
+
 .media-card:hover .media-button img,
 .media-card:hover .media-button video {
   transform: scale(1.025);
@@ -1116,6 +1174,22 @@ button:active:not(:disabled) {
 .note-badge .icon {
   width: 15px;
   height: 15px;
+}
+
+.folder-badge {
+  position: absolute;
+  z-index: 2;
+  bottom: 10px;
+  left: 10px;
+  max-width: calc(100% - 20px);
+  overflow: hidden;
+  padding: 5px 9px;
+  border-radius: 8px;
+  background: rgba(32, 33, 36, 0.78);
+  color: #ffffff;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .section-actions,
@@ -2003,6 +2077,91 @@ dialog::backdrop {
   color: #ffffff;
   transform: translateX(-50%);
   backdrop-filter: blur(8px);
+}
+
+.preview-video-controls {
+  position: absolute;
+  z-index: 4;
+  top: 18px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 24px;
+  background: rgba(32, 33, 36, 0.76);
+  color: #ffffff;
+  transform: translateX(-50%);
+  backdrop-filter: blur(8px);
+}
+
+.preview-video-controls select {
+  height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 18px;
+  outline: 0;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.preview-video-controls option {
+  color: #202124;
+}
+
+.preview-video-controls .icon-button {
+  width: 36px;
+  height: 36px;
+  color: #ffffff;
+}
+
+.state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.diagnostic-dialog {
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(78dvh, 720px);
+  padding: 22px;
+  overflow-y: auto;
+  border: 0;
+  border-radius: 18px;
+  background: var(--surface);
+  color: var(--on-surface);
+  box-shadow: var(--shadow-high);
+}
+
+.diagnostic-list {
+  display: grid;
+  gap: 0;
+  margin: 18px 0 0;
+}
+
+.diagnostic-list div {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--outline-variant);
+}
+
+.diagnostic-list dt {
+  color: var(--on-surface-variant);
+}
+
+.diagnostic-list dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.source-retry-chip,
+.source-diagnostic-chip {
+  border-color: color-mix(in srgb, var(--error) 45%, var(--outline-variant));
+  color: var(--error);
 }
 
 .preview-tools {
@@ -3171,6 +3330,21 @@ dialog::backdrop {
     font-size: 14px;
   }
 
+  .favorite-search-field {
+    flex-basis: 100%;
+  }
+
+  .favorite-batch-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .favorite-batch-actions select,
+  .favorite-batch-actions input {
+    width: min(100%, 190px);
+    flex: 1 1 150px;
+  }
+
   .capability-note {
     width: 100%;
     margin: 0;
@@ -3528,9 +3702,32 @@ dialog::backdrop {
     left: 10px;
   }
 
+  .preview-video-controls {
+    top: 60px;
+    max-width: calc(100% - 24px);
+  }
+
+  .preview-video-controls select {
+    min-width: 0;
+    max-width: 120px;
+  }
+
   .preview-tools .icon-button {
     width: 40px;
     height: 40px;
+  }
+
+  .diagnostic-dialog {
+    width: 100%;
+    max-width: none;
+    max-height: 88dvh;
+    margin: auto 0 0;
+    padding: 18px 16px calc(24px + env(safe-area-inset-bottom));
+    border-radius: 24px 24px 0 0;
+  }
+
+  .diagnostic-list div {
+    grid-template-columns: 92px minmax(0, 1fr);
   }
 
   .preview-zoom {

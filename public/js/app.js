@@ -4,13 +4,14 @@ import {
   createQuery,
   getSource,
   ratingName
-} from './sites.js?v=2.14.0';
+} from './sites.js?v=2.15.0';
 import {
   clampPreviewPan,
   downloadFilename,
   galleryViewKey,
   matchesBlockedTags,
   matchesDimension,
+  matchesFavoriteSearch,
   matchesSmartCollection,
   mediaIdentity,
   nextVideoIndex,
@@ -19,11 +20,13 @@ import {
   replaceCurrentTag,
   retryDelay,
   shouldRetryRequest,
+  selectVideoSource,
   compatibleSourceId,
   sourceSupportsMedia,
   suggestTags,
-  translateTag
-} from './library.js?v=2.14.0';
+  translateTag,
+  videoSourceOptions
+} from './library.js?v=2.15.0';
 import {
   exportLibrary,
   hydrateLibrary,
@@ -32,7 +35,7 @@ import {
   resetState,
   saveLibrary,
   saveState
-} from './storage.js?v=2.14.0';
+} from './storage.js?v=2.15.0';
 
 const elements = {
   sourceList: document.querySelector('#sourceList'),
@@ -75,6 +78,11 @@ const elements = {
   collectionTools: document.querySelector('#collectionTools'),
   batchToolbar: document.querySelector('#batchToolbar'),
   selectionCount: document.querySelector('#selectionCount'),
+  favoriteBatchActions: document.querySelector('#favoriteBatchActions'),
+  batchFavoriteFolder: document.querySelector('#batchFavoriteFolder'),
+  moveSelectedFavorites: document.querySelector('#moveSelectedFavorites'),
+  batchFavoriteLabels: document.querySelector('#batchFavoriteLabels'),
+  tagSelectedFavorites: document.querySelector('#tagSelectedFavorites'),
   selectVisibleButton: document.querySelector('#selectVisibleButton'),
   downloadSelectedButton: document.querySelector('#downloadSelectedButton'),
   clearSelectionButton: document.querySelector('#clearSelectionButton'),
@@ -113,6 +121,10 @@ const elements = {
   previewMedia: document.querySelector('#previewMedia'),
   previewDetails: document.querySelector('#previewDetails'),
   previewZoom: document.querySelector('#previewZoom'),
+  previewVideoControls: document.querySelector('#previewVideoControls'),
+  previewPlaybackRate: document.querySelector('#previewPlaybackRate'),
+  previewQualitySelect: document.querySelector('#previewQualitySelect'),
+  previewPipButton: document.querySelector('#previewPipButton'),
   previewFilmstrip: document.querySelector('#previewFilmstrip'),
   previewHelpButton: document.querySelector('#previewHelpButton'),
   previewQuickFavorite: document.querySelector('#previewQuickFavorite'),
@@ -124,6 +136,10 @@ const elements = {
   closePreview: document.querySelector('#closePreview'),
   previousPreview: document.querySelector('#previousPreview'),
   nextPreview: document.querySelector('#nextPreview'),
+  diagnosticDialog: document.querySelector('#diagnosticDialog'),
+  diagnosticTitle: document.querySelector('#diagnosticTitle'),
+  diagnosticDetails: document.querySelector('#diagnosticDetails'),
+  closeDiagnostic: document.querySelector('#closeDiagnostic'),
   networkStatus: document.querySelector('#networkStatus'),
   downloadQueue: document.querySelector('#downloadQueue'),
   downloadQueueSummary: document.querySelector('#downloadQueueSummary'),
@@ -174,6 +190,7 @@ const sourceHealth = Object.fromEntries(Object.keys(SOURCES).map(sourceId => [so
   checkedAt: 0
 }]));
 const lastRequestAt = new Map();
+const mediaFailures = new Map();
 const RESPONSE_CACHE_PREFIX = 'atlas-gallery-response:';
 const RESPONSE_CACHE_TTL_MS = 5 * 60 * 1000;
 const MIN_SOURCE_REQUEST_INTERVAL_MS = 350;
@@ -265,6 +282,12 @@ function visiblePosts() {
     rows = collection
       ? favorites.filter(post => matchesSmartCollection(post, collection))
       : favorites;
+    if (state.activeFavoriteFolder) {
+      rows = rows.filter(post => state.activeFavoriteFolder === '__ungrouped'
+        ? !post.favoriteFolder
+        : post.favoriteFolder === state.activeFavoriteFolder);
+    }
+    rows = rows.filter(post => matchesFavoriteSearch(post, state.favoriteSearch));
   } else if (state.view === 'history') {
     rows = Object.values(state.history).sort((left, right) => {
       return String(right.viewedAt || '').localeCompare(String(left.viewedAt || ''));
@@ -291,6 +314,73 @@ function persist() {
 function persistLibrary() {
   persist();
   return saveLibrary(state);
+}
+
+function openDiagnostics(title, rows) {
+  elements.diagnosticTitle.textContent = title;
+  elements.diagnosticDetails.innerHTML = rows.map(([label, value]) => `
+    <div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value || '未知')}</dd></div>
+  `).join('');
+  try {
+    elements.diagnosticDialog.showModal();
+  } catch {
+    elements.diagnosticDialog.show();
+  }
+}
+
+function summarizeUrl(value) {
+  try {
+    const url = new URL(value);
+    return `${url.origin}${url.pathname}`;
+  } catch {
+    return String(value || '');
+  }
+}
+
+function showSourceDiagnostics(sourceId) {
+  const source = getSource(sourceId);
+  const health = sourceHealth[sourceId];
+  openDiagnostics(`${source.name} 请求诊断`, [
+    ['站点', source.name],
+    ['站点地址', source.home],
+    ['检测状态', health.status],
+    ['HTTP 状态', health.httpStatus],
+    ['响应耗时', health.latencyMs ? `${health.latencyMs} ms` : '未知'],
+    ['错误信息', health.error],
+    ['最近检测', health.checkedAt ? new Date(health.checkedAt).toLocaleString('zh-CN') : '未知'],
+    ['浏览器网络', navigator.onLine ? '在线' : '离线']
+  ]);
+}
+
+function showMediaDiagnostics(post, failure = {}) {
+  const source = getSource(post.source);
+  openDiagnostics('媒体请求诊断', [
+    ['站点', source.name],
+    ['作品 ID', post.id],
+    ['媒体类型', post.type],
+    ['媒体地址', summarizeUrl(failure.url || post.file)],
+    ['错误代码', failure.code],
+    ['错误信息', failure.message],
+    ['浏览器网络', navigator.onLine ? '在线' : '离线'],
+    ['发生时间', failure.time ? new Date(failure.time).toLocaleString('zh-CN') : '未知']
+  ]);
+}
+
+function showGalleryDiagnostics() {
+  const source = currentSource();
+  const health = sourceHealth[state.source];
+  openDiagnostics('图库请求诊断', [
+    ['站点', source.name],
+    ['媒体类型', state.mediaType],
+    ['热门周期', state.period],
+    ['基准日期', state.anchorDate],
+    ['标签', state.tags],
+    ['HTTP 状态', health?.httpStatus],
+    ['站点错误', health?.error],
+    ['请求错误', galleryError],
+    ['浏览器网络', navigator.onLine ? '在线' : '离线'],
+    ['最近检测', health?.checkedAt ? new Date(health.checkedAt).toLocaleString('zh-CN') : '未知']
+  ]);
 }
 
 function scrollStorageKey(key = galleryViewKey(state)) {
@@ -366,6 +456,14 @@ function renderSources() {
         ${icon(state.mediaType)}
       </span>
     </button>
+    ${health.status === 'error' ? `
+      <button class="source-chip source-retry-chip" type="button" data-retry-source="${sourceId}" title="重试站点请求">
+        ${icon('retry')}重试
+      </button>
+      <button class="source-chip source-diagnostic-chip" type="button" data-source-diagnostics="${sourceId}" title="查看站点请求诊断">
+        ${icon('help')}详情
+      </button>
+    ` : ''}
   `;
   }).join('');
 }
@@ -438,6 +536,14 @@ function renderCollectionTools() {
     return;
   }
 
+  const folders = state.favoriteFolders.map(folder => `
+    <button
+      class="filter-chip ${state.activeFavoriteFolder === folder ? 'is-selected' : ''}"
+      type="button"
+      data-favorite-folder="${escapeHtml(folder)}"
+    >${escapeHtml(folder)}</button>
+  `).join('');
+
   const collections = state.smartCollections.map(collection => `
     <button
       class="filter-chip ${state.activeSmartCollection === collection.id ? 'is-selected' : ''}"
@@ -447,6 +553,16 @@ function renderCollectionTools() {
   `).join('');
 
   elements.collectionTools.innerHTML = `
+    <div class="favorite-collection-tools">
+      <label class="favorite-search-field">
+        <input id="favoriteSearchInput" type="search" value="${escapeHtml(state.favoriteSearch)}" placeholder="搜索收藏的标签、备注、来源或 ID" aria-label="搜索收藏">
+      </label>
+      <strong>收藏分组</strong>
+      <button class="filter-chip ${!state.activeFavoriteFolder ? 'is-selected' : ''}" type="button" data-favorite-folder="">全部</button>
+      <button class="filter-chip ${state.activeFavoriteFolder === '__ungrouped' ? 'is-selected' : ''}" type="button" data-favorite-folder="__ungrouped">未分组</button>
+      ${folders}
+      <button class="text-button" type="button" data-create-favorite-folder>新建分组</button>
+    </div>
     <strong>智能收藏夹</strong>
     <button class="filter-chip ${state.activeSmartCollection ? '' : 'is-selected'}" type="button" data-smart-collection="">全部</button>
     ${collections}
@@ -695,7 +811,7 @@ function emptyState() {
       title: '内容加载失败',
       description: galleryError,
       iconName: 'retry',
-      action: '<button class="filled-button" type="button" data-retry-gallery>重新加载</button>'
+      action: '<div class="state-actions"><button class="filled-button" type="button" data-retry-gallery>重新加载</button><button class="outlined-button" type="button" data-gallery-diagnostics>诊断详情</button></div>'
     });
   }
 
@@ -727,6 +843,7 @@ function postCard(post, index) {
   const previewUrl = buildMediaUrl(preview);
   const mediaName = post.type === 'video' ? '视频' : '图片';
   const hasNotes = Boolean(post.favoriteNote || post.favoriteLabels?.length);
+  const folderName = post.favoriteFolder && state.view === 'favorites' ? post.favoriteFolder : '';
   const width = Number(post.width) || 4;
   const height = Number(post.height) || 3;
   const aspectRatio = Math.min(3, Math.max(0.4, width / height));
@@ -755,8 +872,10 @@ function postCard(post, index) {
         <span class="media-badge">${icon(post.type)}${mediaName}</span>
         <span class="rating-badge">${ratingName(post.rating)}</span>
         ${hasNotes ? `<span class="note-badge" title="包含收藏备注">${icon('bookmark')}</span>` : ''}
-      </button>
-      <footer class="card-footer">
+        ${folderName ? `<span class="folder-badge" title="收藏分组">${escapeHtml(folderName)}</span>` : ''}
+       </button>
+       <button class="media-diagnostic-button" type="button" data-media-diagnostics="${index}" hidden>诊断详情</button>
+       <footer class="card-footer">
         <span class="score">▲ ${Number(post.score) || 0}</span>
         <span class="dimensions">${Number(post.width) || 0} × ${Number(post.height) || 0}</span>
         <button
@@ -792,9 +911,22 @@ function observeLazyMedia() {
       media.addEventListener(loadedEvent, () => media.classList.add('is-loaded'), { once: true });
       media.addEventListener('error', () => {
         media.classList.add('is-loaded', 'has-error');
+        const card = media.closest('.media-card');
         const errorState = media.closest('.media-button')?.querySelector('.media-error-state');
         if (errorState) {
           errorState.hidden = false;
+        }
+        if (card) {
+          mediaFailures.set(card.dataset.postKey, {
+            url: media.currentSrc || media.src || media.dataset.src,
+            code: media instanceof HTMLVideoElement ? media.error?.code : '',
+            message: media instanceof HTMLVideoElement ? media.error?.message : '媒体加载失败',
+            time: Date.now()
+          });
+          const diagnosticButton = card.querySelector('.media-diagnostic-button');
+          if (diagnosticButton) {
+            diagnosticButton.hidden = false;
+          }
         }
       }, { once: true });
       media.src = media.dataset.src;
@@ -809,13 +941,68 @@ function observeLazyMedia() {
   elements.gallery.querySelectorAll('[data-src]').forEach(media => lazyMediaObserver.observe(media));
 }
 
+function retryGalleryMedia(button) {
+  const card = button.closest('.media-card');
+  const media = button.querySelector('img, video');
+  if (!card || !media) {
+    return;
+  }
+
+  const url = media.currentSrc || media.src || media.dataset.src;
+  if (!url) {
+    return;
+  }
+
+  media.classList.remove('is-loaded', 'has-error');
+  const errorState = button.querySelector('.media-error-state');
+  if (errorState) {
+    errorState.hidden = true;
+  }
+  const diagnosticButton = card.querySelector('.media-diagnostic-button');
+  if (diagnosticButton) {
+    diagnosticButton.hidden = true;
+  }
+  mediaFailures.delete(card.dataset.postKey);
+
+  const loadedEvent = media instanceof HTMLVideoElement ? 'loadeddata' : 'load';
+  media.addEventListener(loadedEvent, () => media.classList.add('is-loaded'), { once: true });
+  media.addEventListener('error', () => {
+    media.classList.add('is-loaded', 'has-error');
+    if (errorState) {
+      errorState.hidden = false;
+    }
+    if (diagnosticButton) {
+      diagnosticButton.hidden = false;
+    }
+    mediaFailures.set(card.dataset.postKey, {
+      url,
+      code: media instanceof HTMLVideoElement ? media.error?.code : '',
+      message: media instanceof HTMLVideoElement ? media.error?.message : '媒体加载失败',
+      time: Date.now()
+    });
+  }, { once: true });
+  media.removeAttribute('src');
+  media.src = url;
+  if (media instanceof HTMLVideoElement) {
+    media.load();
+  }
+}
+
 function renderBatchToolbar() {
   elements.batchToolbar.hidden = selectedDownloads.size === 0;
   elements.selectionCount.textContent = `已选择 ${selectedDownloads.size} 项`;
   elements.downloadSelectedButton.disabled = selectedDownloads.size === 0;
+  const favoritesSelected = state.view === 'favorites' && selectedDownloads.size > 0;
+  elements.favoriteBatchActions.hidden = !favoritesSelected;
+  if (favoritesSelected) {
+    elements.batchFavoriteFolder.innerHTML = [
+      '<option value="__ungrouped">未分组</option>',
+      ...state.favoriteFolders.map(folder => `<option value="${escapeHtml(folder)}">${escapeHtml(folder)}</option>`)
+    ].join('');
+  }
 }
 
-function renderGallery({ append = false } = {}) {
+function renderGallery({ append = false, preserveCollectionTools = false } = {}) {
   if (state.view === 'links') {
     renderHeader();
     restoreGalleryScrollPosition();
@@ -831,7 +1018,7 @@ function renderGallery({ append = false } = {}) {
         title: '后续内容加载失败',
         description: galleryError,
         iconName: 'retry',
-        action: '<button class="filled-button" type="button" data-retry-gallery>重新加载</button>'
+        action: '<div class="state-actions"><button class="filled-button" type="button" data-retry-gallery>重新加载</button><button class="outlined-button" type="button" data-gallery-diagnostics>诊断详情</button></div>'
       })}</div>`
     : '';
   const canAppend = append
@@ -865,7 +1052,9 @@ function renderGallery({ append = false } = {}) {
   }
 
   observeLazyMedia();
-  renderCollectionTools();
+  if (!preserveCollectionTools) {
+    renderCollectionTools();
+  }
   renderBatchToolbar();
   restoreGalleryScrollPosition();
 }
@@ -1200,6 +1389,52 @@ async function toggleFavorite(post) {
   }
 }
 
+function selectedFavoritePosts() {
+  return [...selectedDownloads]
+    .map(key => state.favorites[key])
+    .filter(Boolean);
+}
+
+async function moveSelectedFavorites() {
+  const folder = elements.batchFavoriteFolder.value === '__ungrouped'
+    ? ''
+    : elements.batchFavoriteFolder.value;
+  const selected = selectedFavoritePosts();
+  if (!selected.length) {
+    return;
+  }
+
+  selected.forEach(post => {
+    post.favoriteFolder = folder;
+  });
+  await persistLibrary();
+  selectedDownloads.clear();
+  renderGallery();
+  showToast(folder ? `已移动 ${selected.length} 项到「${folder}」` : `已移出分组，共 ${selected.length} 项`);
+}
+
+async function tagSelectedFavorites() {
+  const labels = elements.batchFavoriteLabels.value
+    .split(/[,，\n/]+/)
+    .map(label => label.trim())
+    .filter(Boolean)
+    .slice(0, 12);
+  const selected = selectedFavoritePosts();
+  if (!selected.length || !labels.length) {
+    showToast('请输入至少一个收藏标签');
+    return;
+  }
+
+  selected.forEach(post => {
+    post.favoriteLabels = [...new Set([...(post.favoriteLabels || []), ...labels])].slice(0, 12);
+  });
+  await persistLibrary();
+  elements.batchFavoriteLabels.value = '';
+  selectedDownloads.clear();
+  renderGallery();
+  showToast(`已为 ${selected.length} 项添加标签`);
+}
+
 async function startPreviewVideo(video, force = false) {
   if (!video || (!state.settings.autoplay && !force)) {
     return;
@@ -1484,6 +1719,24 @@ async function saveFavoriteMetadata(post) {
   showToast('收藏备注已保存');
 }
 
+function renderPreviewVideoControls(post) {
+  const isVideo = post?.type === 'video';
+  elements.previewVideoControls.hidden = !isVideo;
+  elements.previewPipButton.disabled = !isVideo || !document.pictureInPictureEnabled;
+  if (!isVideo) {
+    elements.previewQualitySelect.innerHTML = '';
+    return;
+  }
+
+  const options = videoSourceOptions(post);
+  elements.previewQualitySelect.innerHTML = options.map(option => `
+    <option value="${option.value}">${option.label}</option>
+  `).join('');
+  const selected = selectVideoSource(post, state.settings.videoQuality);
+  elements.previewQualitySelect.value = selected.value;
+  elements.previewPlaybackRate.value = String(state.settings.videoPlaybackRate);
+}
+
 function renderPreview() {
   const rows = visiblePosts();
   const post = rows[selectedIndex];
@@ -1492,7 +1745,10 @@ function renderPreview() {
     return;
   }
 
-  const mediaUrl = post.type === 'video' ? post.file : post.sample || post.file;
+  const selectedVideoSource = post.type === 'video'
+    ? selectVideoSource(post, state.settings.videoQuality)
+    : null;
+  const mediaUrl = post.type === 'video' ? selectedVideoSource.url : post.sample || post.file;
   const previewUrl = post.preview || post.sample || post.file;
   const poster = /\.(?:mp4|webm)(?:[?#]|$)/i.test(previewUrl)
     ? ''
@@ -1510,6 +1766,7 @@ function renderPreview() {
   lastPreviewTap = null;
   elements.previewDialog.classList.toggle('hide-details', state.settings.hideDetails);
   elements.previewDialog.classList.toggle('preview-video', post.type === 'video');
+  renderPreviewVideoControls(post);
   elements.previewQuickFavorite.hidden = !(state.settings.showPreviewFavorite && state.settings.hideDetails);
   elements.previewZoom.hidden = post.type === 'video';
   elements.previewFilmstrip.hidden = !state.settings.showPreviewGallery;
@@ -1605,14 +1862,21 @@ function renderPreview() {
   const video = elements.previewMedia.querySelector('video');
   const previewMedia = video || elements.previewMedia.querySelector('img');
   previewMedia?.addEventListener('error', () => {
+    mediaFailures.set(`preview:${favoriteKey(post)}`, {
+      url: previewMedia.currentSrc || previewMedia.src || mediaUrl,
+      code: video?.error?.code || '',
+      message: video?.error?.message || '媒体加载失败',
+      time: Date.now()
+    });
     elements.previewMedia.innerHTML = statePanel({
       title: '媒体加载失败',
       description: '当前媒体地址无法加载，请重试或打开原帖。',
       iconName: 'retry',
-      action: '<button class="filled-button" type="button" data-retry-preview>重新加载</button>'
+      action: '<div class="state-actions"><button class="filled-button" type="button" data-retry-preview>重新加载</button><button class="outlined-button" type="button" data-preview-diagnostics>诊断详情</button></div>'
     });
   }, { once: true });
   if (video) {
+    video.playbackRate = Number(state.settings.videoPlaybackRate) || 1;
     const savedTime = Number(state.videoProgress[favoriteKey(post)]) || 0;
     video.addEventListener('loadedmetadata', () => {
       video.classList.remove('is-landscape', 'is-portrait', 'is-square');
@@ -1933,6 +2197,12 @@ async function checkSourceHealth(sourceId) {
     };
   }
   renderSources();
+  if (sourceHealth[sourceId].status === 'online'
+    && sourceId === state.source
+    && state.view === 'popular'
+    && galleryError) {
+    fetchPosts({ reset: true, force: true });
+  }
 }
 
 async function checkAllSourceHealth() {
@@ -1960,6 +2230,57 @@ function registerEvents() {
     const button = event.target.closest('button');
     if (!button) {
       return;
+    }
+
+    if (button.dataset.retrySource) {
+      checkSourceHealth(button.dataset.retrySource);
+    }
+
+    if (button.dataset.sourceDiagnostics) {
+      showSourceDiagnostics(button.dataset.sourceDiagnostics);
+    }
+
+    if (button.dataset.favoriteFolder !== undefined) {
+      saveGalleryScrollPosition();
+      state.view = 'favorites';
+      state.activeFavoriteFolder = button.dataset.favoriteFolder;
+      state.activeSmartCollection = '';
+      state.favoriteSearch = '';
+      elements.gallery.querySelector('#favoriteSearchInput')?.blur();
+      scheduleGalleryScrollRestore();
+      selectedDownloads.clear();
+      renderControls();
+      renderGallery();
+    }
+
+    if (button.hasAttribute('data-create-favorite-folder')) {
+      const folder = window.prompt('请输入收藏分组名称');
+      const normalized = String(folder || '').trim().slice(0, 30);
+      if (normalized && !state.favoriteFolders.includes(normalized)) {
+        state.favoriteFolders.push(normalized);
+        state.activeFavoriteFolder = normalized;
+        persist();
+        renderCollectionTools();
+        renderBatchToolbar();
+      }
+    }
+
+    if (button.dataset.mediaDiagnostics !== undefined) {
+      const post = visiblePosts()[Number(button.dataset.mediaDiagnostics)];
+      if (post) {
+        showMediaDiagnostics(post, mediaFailures.get(favoriteKey(post)));
+      }
+    }
+
+    if (button.hasAttribute('data-gallery-diagnostics')) {
+      showGalleryDiagnostics();
+    }
+
+    if (button.hasAttribute('data-preview-diagnostics')) {
+      const post = visiblePosts()[selectedIndex];
+      if (post) {
+        showMediaDiagnostics(post, mediaFailures.get(`preview:${favoriteKey(post)}`));
+      }
     }
 
     if (button.dataset.view) {
@@ -2023,7 +2344,11 @@ function registerEvents() {
     }
 
     if (button.dataset.openPreview !== undefined) {
-      openPreview(Number(button.dataset.openPreview));
+      if (button.querySelector('.has-error')) {
+        retryGalleryMedia(button);
+      } else {
+        openPreview(Number(button.dataset.openPreview));
+      }
     }
 
     if (button.dataset.toggleFavorite !== undefined) {
@@ -2147,6 +2472,15 @@ function registerEvents() {
       persist();
       renderSavedSearches();
     }
+  });
+
+  document.addEventListener('input', event => {
+    if (event.target.id !== 'favoriteSearchInput' || state.view !== 'favorites') {
+      return;
+    }
+    state.favoriteSearch = event.target.value.trim().slice(0, 120);
+    persist();
+    renderGallery({ preserveCollectionTools: true });
   });
 
   elements.gallery.addEventListener('change', event => {
@@ -2310,6 +2644,8 @@ function registerEvents() {
     renderGallery();
   });
   elements.downloadSelectedButton.addEventListener('click', () => downloadPosts(selectedPosts()));
+  elements.moveSelectedFavorites.addEventListener('click', moveSelectedFavorites);
+  elements.tagSelectedFavorites.addEventListener('click', tagSelectedFavorites);
   elements.clearDownloadQueue.addEventListener('click', () => {
     for (let index = downloadQueue.length - 1; index >= 0; index -= 1) {
       if (['done', 'cancelled'].includes(downloadQueue[index].status)) {
@@ -2392,6 +2728,45 @@ function registerEvents() {
     }
   });
   elements.previewFullscreenButton.addEventListener('click', togglePreviewFullscreen);
+  elements.previewPlaybackRate.addEventListener('change', () => {
+    const rate = Number(elements.previewPlaybackRate.value);
+    if (![0.5, 0.75, 1, 1.25, 1.5, 2].includes(rate)) {
+      return;
+    }
+    state.settings.videoPlaybackRate = rate;
+    const video = elements.previewMedia.querySelector('video');
+    if (video) {
+      video.playbackRate = rate;
+    }
+    persist();
+  });
+  elements.previewQualitySelect.addEventListener('change', () => {
+    const post = visiblePosts()[selectedIndex];
+    if (!post || post.type !== 'video') {
+      return;
+    }
+    saveVideoProgress(post, elements.previewMedia.querySelector('video'), true);
+    state.settings.videoQuality = elements.previewQualitySelect.value;
+    persist();
+    renderPreview();
+  });
+  elements.previewPipButton.addEventListener('click', async () => {
+    const video = elements.previewMedia.querySelector('video');
+    if (!video || !document.pictureInPictureEnabled) {
+      showToast('当前浏览器不支持画中画');
+      return;
+    }
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+      } else {
+        await video.requestPictureInPicture();
+      }
+    } catch {
+      showToast('当前视频无法进入画中画');
+    }
+  });
+  elements.closeDiagnostic.addEventListener('click', () => elements.diagnosticDialog.close());
   elements.zoomInButton.addEventListener('click', () => setPreviewZoom(previewZoom + 0.25));
   elements.zoomOutButton.addEventListener('click', () => setPreviewZoom(previewZoom - 0.25));
   elements.zoomResetButton.addEventListener('click', () => setPreviewZoom(1));
