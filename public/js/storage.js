@@ -1,7 +1,7 @@
 import {
   normalizeDownloadConcurrency,
   normalizeDownloadNameTemplate
-} from './library.js?v=2.16.0';
+} from './library.js?v=2.17.0';
 
 const STORAGE_KEY = 'atlas-gallery-v2';
 const LEGACY_STORAGE_KEY = 'atlas-gallery';
@@ -18,7 +18,7 @@ export const DEFAULT_STATE = {
   period: 'week',
   anchorDate: '',
   tags: '',
-  ratings: ['safe'],
+  ratings: ['safe', 'questionable', 'explicit'],
   dimensionFilter: 'all',
   settings: {
     theme: 'light',

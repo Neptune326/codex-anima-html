@@ -141,6 +141,10 @@ export function sourceSupportsMedia(source, mediaType) {
   return Boolean(source?.capabilities?.[mediaType]);
 }
 
+export function effectiveGalleryLayout(mediaType, configuredLayout) {
+  return mediaType === 'image' && configuredLayout === 'masonry' ? 'masonry' : 'grid';
+}
+
 export function sourceIdsForMedia(sources, mediaType) {
   return Object.entries(sources || {})
     .filter(([, source]) => sourceSupportsMedia(source, mediaType))
@@ -231,7 +235,7 @@ export function galleryViewKey(value = {}) {
     value.activeSmartCollection || '',
     value.activeFavoriteFolder || '',
     value.favoriteSearch || '',
-    settings.galleryLayout || 'grid',
+    effectiveGalleryLayout(value.mediaType, settings.galleryLayout),
     settings.compactGrid ? 'compact' : 'comfortable',
     settings.blockedTags || ''
   ].map(part => encodeURIComponent(String(part))).join('|');

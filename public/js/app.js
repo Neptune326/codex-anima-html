@@ -4,10 +4,11 @@ import {
   createQuery,
   getSource,
   ratingName
-} from './sites.js?v=2.16.0';
+} from './sites.js?v=2.17.0';
 import {
   clampPreviewPan,
   downloadFilename,
+  effectiveGalleryLayout,
   galleryViewKey,
   matchesBlockedTags,
   matchesDimension,
@@ -24,7 +25,7 @@ import {
   sourceSupportsMedia,
   suggestTags,
   translateTag
-} from './library.js?v=2.16.0';
+} from './library.js?v=2.17.0';
 import {
   exportLibrary,
   hydrateLibrary,
@@ -33,7 +34,7 @@ import {
   resetState,
   saveLibrary,
   saveState
-} from './storage.js?v=2.16.0';
+} from './storage.js?v=2.17.0';
 
 const elements = {
   sourceList: document.querySelector('#sourceList'),
@@ -643,10 +644,12 @@ function applyTagSuggestion(tag) {
 }
 
 function renderControls() {
+  const galleryLayout = effectiveGalleryLayout(state.mediaType, state.settings.galleryLayout);
   document.documentElement.dataset.theme = state.settings.theme;
   document.documentElement.dataset.accent = state.settings.accent;
   document.documentElement.dataset.compact = String(state.settings.compactGrid);
-  elements.gallery.dataset.layout = state.settings.galleryLayout;
+  elements.gallery.dataset.layout = galleryLayout;
+  elements.layoutToggle.hidden = state.mediaType !== 'image';
 
   document.querySelectorAll('[data-view]').forEach(button => {
     const active = button.dataset.view === state.view;
@@ -679,7 +682,7 @@ function renderControls() {
     button.setAttribute('aria-pressed', String(selected));
   });
   document.querySelectorAll('[data-layout]').forEach(button => {
-    const active = button.dataset.layout === state.settings.galleryLayout;
+    const active = button.dataset.layout === galleryLayout;
     button.classList.toggle('is-active', active);
     button.setAttribute('aria-pressed', String(active));
   });
@@ -2349,6 +2352,9 @@ function registerEvents() {
     }
 
     if (button.dataset.layout) {
+      if (state.mediaType !== 'image') {
+        return;
+      }
       state.settings.galleryLayout = button.dataset.layout;
       renderControls();
       renderGallery();

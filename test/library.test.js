@@ -108,7 +108,7 @@ test('dimension filters and media identities are deterministic', async () => {
 });
 
 test('gallery view keys isolate scroll positions and preview panning stays bounded', async () => {
-  const { clampPreviewPan, galleryViewKey } = await import('../public/js/library.js');
+  const { clampPreviewPan, effectiveGalleryLayout, galleryViewKey } = await import('../public/js/library.js');
   const baseState = {
     view: 'popular',
     source: 'danbooru',
@@ -126,6 +126,17 @@ test('gallery view keys isolate scroll positions and preview panning stays bound
   assert.notEqual(galleryViewKey(baseState), galleryViewKey({
     ...baseState,
     settings: { ...baseState.settings, galleryLayout: 'masonry' }
+  }));
+  assert.equal(effectiveGalleryLayout('image', 'masonry'), 'masonry');
+  assert.equal(effectiveGalleryLayout('video', 'masonry'), 'grid');
+  assert.equal(galleryViewKey({
+    ...baseState,
+    mediaType: 'video',
+    settings: { ...baseState.settings, galleryLayout: 'masonry' }
+  }), galleryViewKey({
+    ...baseState,
+    mediaType: 'video',
+    settings: { ...baseState.settings, galleryLayout: 'grid' }
   }));
   assert.deepEqual(clampPreviewPan(900, -500, 2, 800, 600), { x: 400, y: -300 });
   assert.deepEqual(clampPreviewPan(120, -80, 1, 800, 600), { x: 0, y: 0 });
@@ -168,6 +179,7 @@ test('fallback library is authoritative until it is migrated to IndexedDB', asyn
   assert.equal(DEFAULT_STATE.settings.showPreviewFavorite, true);
   assert.equal(DEFAULT_STATE.settings.blurSensitive, false);
   assert.equal(DEFAULT_STATE.settings.compactGrid, false);
+  assert.deepEqual(DEFAULT_STATE.ratings, ['safe', 'questionable', 'explicit']);
   assert.equal(Object.hasOwn(DEFAULT_STATE.settings, 'showPreviewWatchLater'), false);
   assert.equal(Object.hasOwn(DEFAULT_STATE.settings, 'reduceMotion'), false);
   assert.deepEqual(DEFAULT_STATE.favoriteFolders, []);

@@ -157,7 +157,7 @@ test('server serves health and static resources without hanging sockets', async 
     assert.equal(health.status, 200);
     assert.deepEqual(JSON.parse(health.body), {
       ok: true,
-      version: '2.16.0',
+      version: '2.17.0',
       proxyMode: app.proxyMode
     });
 
@@ -194,7 +194,9 @@ test('server serves health and static resources without hanging sockets', async 
     assert.match(page.body, /class="friend-links"/);
     assert.match(page.body, /data-view="links"/);
     assert.match(page.body, /id="friendLinks"[^>]*hidden/);
-    assert.match(page.body, /styles\.css\?v=2\.16\.0/);
+    assert.match(page.body, /styles\.css\?v=2\.17\.0/);
+    assert.match(page.body, /data-rating="questionable"[^>]*class="filter-chip is-selected"|class="filter-chip is-selected"[^>]*data-rating="questionable"/);
+    assert.match(page.body, /data-rating="explicit"[^>]*class="filter-chip is-selected"|class="filter-chip is-selected"[^>]*data-rating="explicit"/);
     assert.match(page.body, /data-view="playlist"/);
     assert.doesNotMatch(page.body, /id="aggregateSearchButton"/);
     assert.doesNotMatch(page.body, /href="https:\/\/(?:realbooru|gelbooru)\.com\/"/);
@@ -232,6 +234,8 @@ test('server serves health and static resources without hanging sockets', async 
     assert.match(appScript.body, /moveSelectedFavorites/);
     assert.doesNotMatch(appScript.body, /requestPictureInPicture/);
     assert.match(appScript.body, /videoPlaybackRateEnabled/);
+    assert.match(appScript.body, /effectiveGalleryLayout/);
+    assert.match(appScript.body, /layoutToggle\.hidden = state\.mediaType !== 'image'/);
     assert.match(appScript.body, /showSourceDiagnostics/);
     assert.match(appScript.body, /retryGalleryMedia/);
     assert.doesNotMatch(appScript.body, /state\.settings\.reduceMotion/);
@@ -255,6 +259,7 @@ test('server serves health and static resources without hanging sockets', async 
     assert.doesNotMatch(styles.body, /\.preview-video-controls\s*\{/);
     assert.match(styles.body, /--mobile-top-bar-height:\s*56px/);
     assert.match(styles.body, /\.main-content\s*\{[^}]*padding:\s*0 12px/s);
+    assert.match(styles.body, /@media \(max-width:\s*980px\)[\s\S]*\.main-content\s*\{[^}]*padding-top:\s*0;/s);
     assert.match(styles.body, /\.diagnostic-dialog\s*\{/);
     assert.match(styles.body, /\.favorite-batch-actions\s*\{/);
     assert.match(styles.body, /\.preview-media video\.is-landscape[\s\S]*width:\s*100%;[\s\S]*height:\s*auto;/);
