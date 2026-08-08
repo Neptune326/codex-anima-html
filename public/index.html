@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="light dark">
   <meta name="description" content="多站点图片与视频图库浏览器">
   <title>Atlas Gallery</title>
-  <link rel="stylesheet" href="/css/styles.css?v=2.11.2">
+  <link rel="stylesheet" href="/css/styles.css?v=2.12.0">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true">
@@ -509,16 +509,24 @@
           <input type="checkbox" data-setting="videoLoop">
         </label>
         <label class="setting-row">
+          <span><strong>显示预览画廊</strong><small>在查看页底部显示相邻媒体缩略图</small></span>
+          <input type="checkbox" data-setting="showPreviewGallery">
+        </label>
+        <label class="setting-row">
+          <span><strong>显示预览收藏按钮</strong><small>在查看页显示收藏操作</small></span>
+          <input type="checkbox" data-setting="showPreviewFavorite">
+        </label>
+        <label class="setting-row">
+          <span><strong>显示预览稍后观看按钮</strong><small>在查看页显示稍后观看操作</small></span>
+          <input type="checkbox" data-setting="showPreviewWatchLater">
+        </label>
+        <label class="setting-row">
           <span><strong>模糊敏感缩略图</strong><small>预览前保护敏感内容</small></span>
           <input type="checkbox" data-setting="blurSensitive">
         </label>
         <label class="setting-row">
           <span><strong>紧凑网格</strong><small>同屏显示更多媒体</small></span>
           <input type="checkbox" data-setting="compactGrid">
-        </label>
-        <label class="setting-row">
-          <span><strong>减少动画</strong><small>关闭位移和缩放动画</small></span>
-          <input type="checkbox" data-setting="reduceMotion">
         </label>
       </section>
 
@@ -716,6 +724,6 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script type="module" src="/js/app.js?v=2.11.2"></script>
+  <script type="module" src="/js/app.js?v=2.12.0"></script>
 </body>
 </html>

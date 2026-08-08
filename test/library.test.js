@@ -137,7 +137,11 @@ test('nextVideoIndex skips images and finds the next playable video', async () =
 });
 
 test('fallback library is authoritative until it is migrated to IndexedDB', async () => {
-  const { resolveLibrarySnapshot } = await import('../public/js/storage.js');
+  const { DEFAULT_STATE, resolveLibrarySnapshot } = await import('../public/js/storage.js');
+  assert.equal(DEFAULT_STATE.settings.showPreviewGallery, false);
+  assert.equal(DEFAULT_STATE.settings.showPreviewFavorite, true);
+  assert.equal(DEFAULT_STATE.settings.showPreviewWatchLater, true);
+  assert.equal(Object.hasOwn(DEFAULT_STATE.settings, 'reduceMotion'), false);
   const databaseLibrary = {
     favorites: { old: { id: 'old' } },
     history: { old: { id: 'old' } }

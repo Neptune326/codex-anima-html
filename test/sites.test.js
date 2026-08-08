@@ -25,7 +25,7 @@ test('remaining site adapters build allowlisted URLs with period and rating filt
     'wallhaven'
   ]);
 
-  for (const sourceId of ['yandere', 'konachan', 'konachanNet', 'lolibooru', 'danbooru', 'aibooru', 'sankaku', 'safebooru', 'rule34']) {
+  for (const sourceId of ['yandere', 'konachan', 'konachanNet', 'lolibooru', 'danbooru', 'aibooru', 'sankaku', 'safebooru']) {
     assert.equal(SOURCES[sourceId].capabilities.date, true, `${sourceId} should support date filters`);
     assert.match(
       SOURCES[sourceId].buildUrl(query).searchParams.get('tags'),
@@ -34,12 +34,14 @@ test('remaining site adapters build allowlisted URLs with period and rating filt
   }
 
   assert.equal(SOURCES.wallhaven.capabilities.date, false);
+  assert.equal(SOURCES.rule34.capabilities.date, false);
   assert.equal(new URL(SOURCES.sankaku.buildUrl(query)).hostname, 'capi-v2.sankakucomplex.com');
   assert.equal(new URL(SOURCES.sankaku.buildUrl(query)).pathname, '/posts');
   assert.match(SOURCES.sankaku.buildUrl(query).searchParams.get('tags'), /rating:safe/);
   assert.match(SOURCES.danbooru.buildUrl(query).searchParams.get('tags'), /rating:g/);
   assert.doesNotMatch(SOURCES.danbooru.buildUrl(query).searchParams.get('tags'), /filetype:/);
   assert.match(SOURCES.rule34.buildUrl(query).searchParams.get('tags'), /rating:safe/);
+  assert.doesNotMatch(SOURCES.rule34.buildUrl(query).searchParams.get('tags'), /date:/);
   assert.doesNotMatch(SOURCES.rule34.buildUrl(query).searchParams.get('tags'), /-video/);
   assert.doesNotMatch(SOURCES.lolibooru.buildUrl(query).searchParams.get('tags'), /-video/);
 });

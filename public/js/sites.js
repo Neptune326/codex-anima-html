@@ -487,9 +487,9 @@ export const SOURCES = {
     shortName: 'Rule34',
     home: 'https://rule34.xxx/',
     description: '标签化图片与视频图库',
-    capabilities: { image: true, date: true, video: false },
+    capabilities: { image: true, date: false, video: false },
     buildUrl(query) {
-      return buildGelbooruUrl('https://api.rule34.xxx/index.php', query, true);
+      return buildGelbooruUrl('https://api.rule34.xxx/index.php', query, false);
     },
     buildTagUrl(query) {
       return buildGelbooruTagUrl('https://api.rule34.xxx/index.php', query);

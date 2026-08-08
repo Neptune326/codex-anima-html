@@ -4,7 +4,7 @@ import {
   createQuery,
   getSource,
   ratingName
-} from './sites.js?v=2.11.2';
+} from './sites.js?v=2.12.0';
 import {
   clampPreviewPan,
   downloadFilename,
@@ -23,7 +23,7 @@ import {
   sourceSupportsMedia,
   suggestTags,
   translateTag
-} from './library.js?v=2.11.2';
+} from './library.js?v=2.12.0';
 import {
   exportLibrary,
   hydrateLibrary,
@@ -32,7 +32,7 @@ import {
   resetState,
   saveLibrary,
   saveState
-} from './storage.js?v=2.11.2';
+} from './storage.js?v=2.12.0';
 
 const elements = {
   sourceList: document.querySelector('#sourceList'),
@@ -155,6 +155,7 @@ let previewPanY = 0;
 let previewDrag = null;
 let previewGesture = null;
 let lastPreviewTap = null;
+let previewTransitionToken = 0;
 let pendingScrollRestoreKey = '';
 let scrollSaveFrame = 0;
 let galleryError = '';
@@ -533,7 +534,6 @@ function renderControls() {
   document.documentElement.dataset.theme = state.settings.theme;
   document.documentElement.dataset.accent = state.settings.accent;
   document.documentElement.dataset.compact = String(state.settings.compactGrid);
-  document.documentElement.dataset.reduceMotion = String(state.settings.reduceMotion);
   elements.gallery.dataset.layout = state.settings.galleryLayout;
 
   document.querySelectorAll('[data-view]').forEach(button => {
@@ -622,7 +622,7 @@ function renderControls() {
 }
 
 function createRipple(event, button) {
-  if (state.settings.reduceMotion || button.disabled) {
+  if (button.disabled) {
     return;
   }
 
@@ -1458,6 +1458,7 @@ function renderPreview() {
   lastPreviewTap = null;
   elements.previewDialog.classList.toggle('hide-details', state.settings.hideDetails);
   elements.previewZoom.hidden = post.type === 'video';
+  elements.previewFilmstrip.hidden = !state.settings.showPreviewGallery;
   elements.previewMedia.innerHTML = post.type === 'video'
     ? `
       <video
@@ -1473,7 +1474,11 @@ function renderPreview() {
       ></video>
     `
     : `<img src="${escapeHtml(buildMediaUrl(mediaUrl))}" alt="${escapeHtml(post.tags?.join(', ') || `帖子 ${post.id}`)}" draggable="false">`;
-  renderPreviewFilmstrip(rows);
+  if (state.settings.showPreviewGallery) {
+    renderPreviewFilmstrip(rows);
+  } else {
+    elements.previewFilmstrip.innerHTML = '';
+  }
 
   const source = getSource(post.source);
   const favorite = state.favorites[favoriteKey(post)];
@@ -1510,12 +1515,16 @@ function renderPreview() {
       <button class="tonal-button" id="saveFavoriteMetadata" type="button" ${isFavorite ? '' : 'disabled'}>保存备注</button>
     </section>
     <div class="preview-actions">
-      <button class="outlined-button" id="previewFavorite" type="button">
-        ${icon('favorite')}${isFavorite ? '取消收藏' : '收藏'}
-      </button>
-      <button class="outlined-button" id="previewWatchLater" type="button">
-        ${icon('bookmark')}${isWatchLater ? '移出稍后看' : '加入稍后看'}
-      </button>
+      ${state.settings.showPreviewFavorite ? `
+        <button class="outlined-button" id="previewFavorite" type="button">
+          ${icon('favorite')}${isFavorite ? '取消收藏' : '收藏'}
+        </button>
+      ` : ''}
+      ${state.settings.showPreviewWatchLater ? `
+        <button class="outlined-button" id="previewWatchLater" type="button">
+          ${icon('bookmark')}${isWatchLater ? '移出稍后看' : '加入稍后看'}
+        </button>
+      ` : ''}
       <button class="outlined-button" id="copyTags" type="button">
         ${icon('copy')}复制标签
       </button>
@@ -1533,8 +1542,8 @@ function renderPreview() {
 
   elements.previousPreview.disabled = selectedIndex <= 0;
   elements.nextPreview.disabled = selectedIndex >= rows.length - 1;
-  document.querySelector('#previewFavorite').addEventListener('click', () => toggleFavorite(post));
-  document.querySelector('#previewWatchLater').addEventListener('click', () => toggleWatchLater(post));
+  document.querySelector('#previewFavorite')?.addEventListener('click', () => toggleFavorite(post));
+  document.querySelector('#previewWatchLater')?.addEventListener('click', () => toggleWatchLater(post));
   document.querySelector('#copyTags').addEventListener('click', () => copyTags(post));
   document.querySelector('#copyOriginalLink').addEventListener('click', () => copyOriginalLink(post));
   document.querySelector('#previewDownload').addEventListener('click', () => {
@@ -1630,6 +1639,7 @@ function openPreview(index) {
 }
 
 function closePreview() {
+  previewTransitionToken += 1;
   const post = visiblePosts()[selectedIndex];
   saveVideoProgress(post, elements.previewMedia.querySelector('video'), true);
   elements.previewMedia.innerHTML = '';
@@ -1644,8 +1654,29 @@ function movePreview(step) {
   if (nextIndex >= 0 && nextIndex < visiblePosts().length) {
     const post = visiblePosts()[selectedIndex];
     saveVideoProgress(post, elements.previewMedia.querySelector('video'), true);
-    selectedIndex = nextIndex;
-    renderPreview();
+    const complete = () => {
+      selectedIndex = nextIndex;
+      renderPreview();
+    };
+    if (!window.matchMedia?.('(max-width: 640px)').matches) {
+      complete();
+      return;
+    }
+
+    const direction = step > 0 ? 'next' : 'previous';
+    const token = ++previewTransitionToken;
+    const media = elements.previewMedia;
+    media.classList.remove('is-swipe-in-next', 'is-swipe-in-previous');
+    media.classList.add(`is-swipe-out-${direction}`);
+    window.setTimeout(() => {
+      if (token !== previewTransitionToken || !elements.previewDialog.open) {
+        return;
+      }
+      media.classList.remove(`is-swipe-out-${direction}`);
+      complete();
+      media.classList.add(`is-swipe-in-${direction}`);
+      window.setTimeout(() => media.classList.remove(`is-swipe-in-${direction}`), 220);
+    }, 150);
   }
 }
 
@@ -2449,7 +2480,7 @@ function registerEvents() {
     }
   }, { passive: true });
   elements.backToTop.addEventListener('click', () => {
-    window.scrollTo({ top: 0, behavior: state.settings.reduceMotion ? 'auto' : 'smooth' });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   });
 }
 

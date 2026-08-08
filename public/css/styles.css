@@ -101,10 +101,6 @@
   --card-min: 184px;
 }
 
-[data-reduce-motion="true"] {
-  --motion-duration: 0ms;
-}
-
 * {
   box-sizing: border-box;
 }
@@ -114,10 +110,6 @@ html {
   min-width: 320px;
   background: var(--surface-container-low);
   scroll-behavior: smooth;
-}
-
-[data-reduce-motion="true"] {
-  scroll-behavior: auto;
 }
 
 body {
@@ -1901,6 +1893,58 @@ dialog::backdrop {
   overflow: hidden;
   touch-action: pan-y;
   overscroll-behavior: contain;
+}
+
+.preview-media.is-swipe-out-next {
+  animation: preview-swipe-out-next 150ms ease both;
+}
+
+.preview-media.is-swipe-out-previous {
+  animation: preview-swipe-out-previous 150ms ease both;
+}
+
+.preview-media.is-swipe-in-next {
+  animation: preview-swipe-in-next 220ms ease both;
+}
+
+.preview-media.is-swipe-in-previous {
+  animation: preview-swipe-in-previous 220ms ease both;
+}
+
+@keyframes preview-swipe-out-next {
+  to {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+}
+
+@keyframes preview-swipe-out-previous {
+  to {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+
+@keyframes preview-swipe-in-next {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes preview-swipe-in-previous {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .preview-media img,

@@ -1,7 +1,7 @@
 import {
   normalizeDownloadConcurrency,
   normalizeDownloadNameTemplate
-} from './library.js?v=2.11.2';
+} from './library.js?v=2.12.0';
 
 const STORAGE_KEY = 'atlas-gallery-v2';
 const LEGACY_STORAGE_KEY = 'atlas-gallery';
@@ -28,10 +28,12 @@ export const DEFAULT_STATE = {
     videoAutoNext: true,
     videoMuted: true,
     videoLoop: false,
+    showPreviewGallery: false,
+    showPreviewFavorite: true,
+    showPreviewWatchLater: true,
     blurSensitive: true,
     compactGrid: false,
     galleryLayout: 'grid',
-    reduceMotion: false,
     blockedTags: '',
     downloadConcurrency: 2,
     downloadNameTemplate: '{source}-{id}',
@@ -53,25 +55,26 @@ function clone(value) {
 }
 
 function normalizeSettings(settings = {}) {
+  const { reduceMotion: _legacyReduceMotion, ...settingsWithoutMotion } = settings;
   const legacyTheme = settings.light === undefined
     ? undefined
     : settings.light ? 'light' : 'dark';
 
   return {
     ...DEFAULT_STATE.settings,
-    ...settings,
-    theme: settings.theme || legacyTheme || DEFAULT_STATE.settings.theme,
-    accent: ['blue', 'green', 'coral', 'violet'].includes(settings.accent)
-      ? settings.accent
+    ...settingsWithoutMotion,
+    theme: settingsWithoutMotion.theme || legacyTheme || DEFAULT_STATE.settings.theme,
+    accent: ['blue', 'green', 'coral', 'violet'].includes(settingsWithoutMotion.accent)
+      ? settingsWithoutMotion.accent
       : DEFAULT_STATE.settings.accent,
-    galleryLayout: ['grid', 'masonry'].includes(settings.galleryLayout)
-      ? settings.galleryLayout
+    galleryLayout: ['grid', 'masonry'].includes(settingsWithoutMotion.galleryLayout)
+      ? settingsWithoutMotion.galleryLayout
       : DEFAULT_STATE.settings.galleryLayout,
-    compactGrid: settings.compactGrid ?? settings.compact ?? false,
-    blockedTags: String(settings.blockedTags || '').trim(),
-    downloadConcurrency: normalizeDownloadConcurrency(settings.downloadConcurrency),
-    downloadNameTemplate: normalizeDownloadNameTemplate(settings.downloadNameTemplate),
-    proxyTemplate: settings.proxyTemplate ?? settings.proxy ?? ''
+    compactGrid: settingsWithoutMotion.compactGrid ?? settingsWithoutMotion.compact ?? false,
+    blockedTags: String(settingsWithoutMotion.blockedTags || '').trim(),
+    downloadConcurrency: normalizeDownloadConcurrency(settingsWithoutMotion.downloadConcurrency),
+    downloadNameTemplate: normalizeDownloadNameTemplate(settingsWithoutMotion.downloadNameTemplate),
+    proxyTemplate: settingsWithoutMotion.proxyTemplate ?? settingsWithoutMotion.proxy ?? ''
   };
 }
 
