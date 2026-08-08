@@ -4,7 +4,7 @@ import {
   createQuery,
   getSource,
   ratingName
-} from './sites.js?v=2.13.0';
+} from './sites.js?v=2.14.0';
 import {
   clampPreviewPan,
   downloadFilename,
@@ -23,7 +23,7 @@ import {
   sourceSupportsMedia,
   suggestTags,
   translateTag
-} from './library.js?v=2.13.0';
+} from './library.js?v=2.14.0';
 import {
   exportLibrary,
   hydrateLibrary,
@@ -32,7 +32,7 @@ import {
   resetState,
   saveLibrary,
   saveState
-} from './storage.js?v=2.13.0';
+} from './storage.js?v=2.14.0';
 
 const elements = {
   sourceList: document.querySelector('#sourceList'),
@@ -1149,7 +1149,37 @@ function openPixivArtwork(value) {
   elements.pixivForm.reset();
 }
 
+function updatePreviewFavoriteControls(post) {
+  if (!post) {
+    return;
+  }
+
+  const isFavorite = Boolean(state.favorites[favoriteKey(post)]);
+  const quickButton = elements.previewQuickFavorite;
+  quickButton.classList.toggle('is-active', isFavorite);
+  quickButton.title = isFavorite ? '取消收藏' : '收藏';
+  quickButton.setAttribute('aria-label', quickButton.title);
+  quickButton.setAttribute('aria-pressed', String(isFavorite));
+
+  const detailButton = document.querySelector('#previewFavorite');
+  if (detailButton) {
+    detailButton.classList.toggle('is-active', isFavorite);
+    detailButton.setAttribute('aria-pressed', String(isFavorite));
+    detailButton.innerHTML = `${icon('favorite')}${isFavorite ? '取消收藏' : '收藏'}`;
+  }
+
+  const metadata = document.querySelector('.favorite-metadata');
+  metadata?.classList.toggle('is-disabled', !isFavorite);
+  metadata?.querySelectorAll('input, textarea, button').forEach(control => {
+    control.disabled = !isFavorite;
+  });
+}
+
 async function toggleFavorite(post) {
+  if (!post) {
+    return;
+  }
+
   saveVideoProgress(post, elements.previewMedia.querySelector('video'), true);
   const key = favoriteKey(post);
   if (state.favorites[key]) {
@@ -1166,7 +1196,28 @@ async function toggleFavorite(post) {
   await persistLibrary();
   renderGallery();
   if (elements.previewDialog.open) {
-    renderPreview();
+    updatePreviewFavoriteControls(post);
+  }
+}
+
+async function startPreviewVideo(video, force = false) {
+  if (!video || (!state.settings.autoplay && !force)) {
+    return;
+  }
+
+  try {
+    await video.play();
+  } catch (error) {
+    if (error?.name !== 'NotAllowedError' || video.muted) {
+      return;
+    }
+
+    video.muted = true;
+    try {
+      await video.play();
+    } catch {
+      // The browser can still reject playback until the user taps the player.
+    }
   }
 }
 
@@ -1540,6 +1591,7 @@ function renderPreview() {
     </div>
   `;
 
+  updatePreviewFavoriteControls(post);
   elements.previousPreview.disabled = selectedIndex <= 0;
   elements.nextPreview.disabled = selectedIndex >= rows.length - 1;
   document.querySelector('#previewFavorite')?.addEventListener('click', () => toggleFavorite(post));
@@ -1583,6 +1635,7 @@ function renderPreview() {
         playNextVideo();
       }
     });
+    startPreviewVideo(video);
   }
 }
 
@@ -1692,9 +1745,7 @@ function playNextVideo() {
   selectedIndex = nextIndex;
   renderPreview();
 
-  const nextVideo = elements.previewMedia.querySelector('video');
-  const playPromise = nextVideo?.play();
-  playPromise?.catch(() => showToast('已切换到下一个视频，请点击播放'));
+  startPreviewVideo(elements.previewMedia.querySelector('video'), true);
 }
 
 async function copyTags(post) {

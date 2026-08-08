@@ -2021,7 +2021,13 @@ dialog::backdrop {
 }
 
 .preview-quick-favorite.is-active {
-  color: var(--primary-container);
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+}
+
+.preview-actions .outlined-button.is-active {
+  background: var(--primary-container);
+  color: var(--on-primary-container);
 }
 
 .shortcut-help {
@@ -3149,12 +3155,20 @@ dialog::backdrop {
   .date-stepper {
     width: 100%;
     height: 44px;
+    max-width: 100%;
   }
 
   .date-stepper input {
     width: auto;
     min-width: 0;
     flex: 1;
+  }
+
+  .date-stepper #anchorDate {
+    width: 0;
+    min-width: 0;
+    flex: 1 1 0;
+    font-size: 14px;
   }
 
   .capability-note {
@@ -3196,11 +3210,18 @@ dialog::backdrop {
   }
 
   .section-header {
+    position: sticky;
+    z-index: 18;
+    top: 56px;
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: 12px;
-    margin-bottom: 14px;
+    margin: 0 -12px 14px;
+    padding: 8px 12px 12px;
+    border-bottom: 1px solid var(--outline-variant);
+    background: color-mix(in srgb, var(--surface) 94%, transparent);
+    backdrop-filter: blur(14px);
   }
 
   .section-title-wrap {

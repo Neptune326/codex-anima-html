@@ -157,7 +157,7 @@ test('server serves health and static resources without hanging sockets', async 
     assert.equal(health.status, 200);
     assert.deepEqual(JSON.parse(health.body), {
       ok: true,
-      version: '2.13.0',
+      version: '2.14.0',
       proxyMode: app.proxyMode
     });
 
@@ -187,7 +187,7 @@ test('server serves health and static resources without hanging sockets', async 
     assert.match(page.body, /class="friend-links"/);
     assert.match(page.body, /data-view="links"/);
     assert.match(page.body, /id="friendLinks"[^>]*hidden/);
-    assert.match(page.body, /styles\.css\?v=2\.13\.0/);
+    assert.match(page.body, /styles\.css\?v=2\.14\.0/);
     assert.match(page.body, /data-view="playlist"/);
     assert.doesNotMatch(page.body, /id="aggregateSearchButton"/);
     assert.doesNotMatch(page.body, /href="https:\/\/(?:realbooru|gelbooru)\.com\/"/);
@@ -219,6 +219,8 @@ test('server serves health and static resources without hanging sockets', async 
     assert.match(appScript.body, /showPreviewFavorite/);
     assert.doesNotMatch(appScript.body, /showPreviewWatchLater/);
     assert.match(appScript.body, /previewQuickFavorite/);
+    assert.match(appScript.body, /updatePreviewFavoriteControls/);
+    assert.match(appScript.body, /startPreviewVideo/);
     assert.doesNotMatch(appScript.body, /state\.settings\.reduceMotion/);
     assert.match(appScript.body, /renderGallery\(\{ append: !reset \}\)/);
     assert.match(appScript.body, /toggleWatchLater/);
@@ -234,6 +236,8 @@ test('server serves health and static resources without hanging sockets', async 
     assert.match(styles.body, /\.control-surface\.is-mobile-open\s*\{[^}]*transform:\s*translateY\(0\)/s);
     assert.match(styles.body, /content-visibility:\s*auto/);
     assert.match(styles.body, /cursor:\s*grab/);
+    assert.match(styles.body, /\.section-header\s*\{[^}]*position:\s*sticky;/s);
+    assert.match(styles.body, /\.date-stepper #anchorDate\s*\{[^}]*width:\s*0;/s);
     assert.match(styles.body, /\.preview-media video\.is-landscape[\s\S]*width:\s*100%;[\s\S]*height:\s*auto;/);
     assert.match(styles.body, /\.preview-media video\.is-portrait\s*\{[^}]*height:\s*100%;/s);
     assert.match(styles.body, /\.friend-links-grid\s*\{[^}]*grid-template-columns:\s*repeat\(auto-fit,/s);
